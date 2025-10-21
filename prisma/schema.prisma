@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Calls from Mango Office
+model Call {
+  id              Int       @id @default(autoincrement())
+  callId          String    @unique       // Уникальный ID звонка от Mango
+  phoneClient     String                  // Номер клиента
+  phoneOperator   String?                 // Номер оператора
+  direction       String                  // 'inbound' | 'outbound'
+  callDate        DateTime                // Дата/время звонка
+  duration        Int?                    // Длительность в секундах
+  status          String                  // 'answered', 'missed', 'busy', 'failed'
+  recordUrl       String?                 // Ссылка на запись
+  recordFile      String?                 // Локальный файл записи
+  operatorId      Int?                    // ID оператора (CallcentreOperator)
+  orderId         Int?                    // Связанный заказ
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  order           Order?    @relation(fields: [orderId], references: [id])
+  operator        CallcentreOperator? @relation(fields: [operatorId], references: [id])
+  
+  @@map("call")
+  @@index([phoneClient])
+  @@index([callDate])
+  @@index([operatorId])
+}
+
+// Related models
+model Order {
+  id                    Int       @id @default(autoincrement())
+  rk                    String
+  city                  String
+  avitoName             String?
+  phone                 String
+  typeOrder             String
+  clientName            String
+  address               String
+  dateMeeting           String
+  typeEquipment         String
+  problem               String
+  callRecord            String?
+  statusOrder           String
+  masterId              Int?
+  result                Int?
+  expenditure           Int?
+  clean                 Int?
+  masterChange          Int?
+  bsoDoc                String?
+  expenditureDoc        String?
+  operatorNameId        Int
+  createDate            DateTime  @default(now())
+  closingData           String?
+  avitoChatId           String?
+  callId                String?
+  prepayment            Int?
+  dateClosmod           String?
+  comment               String?
+  cashSubmissionStatus  String?
+  cashSubmissionDate    DateTime?
+  cashSubmissionAmount  Int?
+  cashReceiptDoc        String?
+  cashApprovedBy        Int?
+  cashApprovedDate      DateTime?
+  directorId            Int?
+  callcentreAdminId     Int?
+  callcentreOperatorId  Int?
+  
+  calls                 Call[]
+  
+  @@map("order")
+}
+
+model CallcentreOperator {
+  id             Int       @id @default(autoincrement())
+  name           String
+  login          String    @unique
+  password       String
+  statusWork     String?
+  dateCreate     DateTime  @default(now())
+  note           String?
+  
+  calls          Call[]
+  
+  @@map("callcentre_operator")
+}
+
