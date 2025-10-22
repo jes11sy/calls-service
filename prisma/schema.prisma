@@ -83,12 +83,15 @@ model CallcentreOperator {
   name           String
   login          String    @unique
   password       String
-  statusWork     String?
-  dateCreate     DateTime  @default(now())
+  sipAddress     String?   @map("sip_address")
+  statusWork     String?   @map("status_work")
+  dateCreate     DateTime  @default(now()) @map("date_create")
   note           String?
   
   calls          Call[]
   
   @@map("callcentre_operator")
 }
+
+
 

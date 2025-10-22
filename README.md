@@ -10,11 +10,20 @@
 - Статистика звонков
 - Фильтрация по операторам, датам, статусам
 
-### Mango Office Integration
-- Прием вебхуков от Mango Office
-- Автоматическое сохранение звонков
-- Получение записей звонков
-- Обработка входящих и исходящих звонков
+### Mango Office Integration (Полная)
+- ✅ Прием вебхуков от Mango Office (все состояния)
+- ✅ Обработка событий: Appeared, Connected, Disconnected
+- ✅ Автоматическое сохранение звонков
+- ✅ Скачивание записей звонков через Mango API
+- ✅ Загрузка записей в S3/Object Storage
+- ✅ Поиск операторов по SIP-адресам
+- ✅ Определение статусов звонков (answered, missed, busy, no_answer)
+
+### Real-time Events
+- ✅ Интеграция с Realtime Service
+- ✅ Broadcast событий новых звонков
+- ✅ Broadcast обновлений звонков
+- ✅ Broadcast завершения звонков
 
 ## API Endpoints
 
@@ -33,18 +42,57 @@
 ## Environment Variables
 
 ```env
+# Database
 DATABASE_URL=postgresql://user:pass@host:port/db
+
+# Auth
 JWT_SECRET=your-secret
+
+# Server
 PORT=5003
+CORS_ORIGIN=http://localhost:3000
+
+# Mango Office API
+MANGO_OFFICE_API_KEY=your-api-key
+MANGO_OFFICE_API_SALT=your-api-salt
+MANGO_API_URL=https://app.mango-office.ru/vpbx
+
+# S3 / Object Storage
+S3_BUCKET_NAME=your-bucket
+S3_REGION=us-east-1
+S3_ENDPOINT=https://s3.selcdn.ru
+S3_ACCESS_KEY_ID=your-key
+S3_SECRET_ACCESS_KEY=your-secret
+
+# Realtime Service
+REALTIME_SERVICE_URL=http://realtime-service:5009
+WEBHOOK_TOKEN=your-webhook-token
 ```
 
 ## Mango Office Webhook Configuration
 
-**URL для вебхуков:** `https://api.test-shem.ru/api/v1/webhook/mango`
+### 1. Webhook для звонков
+**URL:** `https://api.test-shem.ru/api/v1/webhook/mango`
 
 **Поддерживаемые события:**
-- `CALL_RESULT` - результат звонка
-- `RECORDING` - запись звонка
+- `call_state: Appeared` - звонок появился
+- `call_state: Connected` - звонок принят
+- `call_state: Disconnected` - звонок завершен
+
+### 2. Webhook для записей
+**URL:** `https://api.test-shem.ru/api/v1/webhook/mango/recording`
+
+**События:**
+- `recording_state: Completed` - запись готова
+- Автоматическое скачивание и загрузка в S3
+
+### Настройка в Mango Office
+
+1. Войдите в личный кабинет Mango Office
+2. Перейдите в раздел "Настройки" → "API"
+3. Добавьте webhook URL
+4. Выберите события: "Звонки" и "Записи звонков"
+5. Сохраните настройки
 
 ## Docker
 
@@ -52,4 +100,6 @@ PORT=5003
 docker build -t calls-service .
 docker run -p 5003:5003 calls-service
 ```
+
+
 
