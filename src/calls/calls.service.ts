@@ -11,11 +11,6 @@ export class CallsService {
 
     const where: any = {};
 
-    // Если это оператор - показываем только его звонки
-    if (user.role === 'CALLCENTRE_OPERATOR') {
-      where.operatorId = user.userId;
-    }
-
     if (status) {
       where.status = status;
     }
@@ -38,6 +33,14 @@ export class CallsService {
       if (endDate) where.dateCreate.lte = new Date(endDate);
     }
 
+    // Pagination
+    const page = query.page ? +query.page : 1;
+    const limit = query.limit ? +query.limit : 20;
+    const skip = (page - 1) * limit;
+
+    // Get total count
+    const total = await this.prisma.call.count({ where });
+
     const calls = await this.prisma.call.findMany({
       where,
       orderBy: { dateCreate: 'desc' },
@@ -49,12 +52,21 @@ export class CallsService {
           },
         },
       },
-      take: 100, // Ограничение
+      skip,
+      take: limit,
     });
 
     return {
       success: true,
-      data: calls,
+      data: {
+        calls,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      },
     };
   }
 
