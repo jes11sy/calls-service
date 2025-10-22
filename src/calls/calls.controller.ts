@@ -24,7 +24,7 @@ export class CallsController {
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN, UserRole.CALLCENTRE_OPERATOR, UserRole.DIRECTOR)
+  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
   @ApiOperation({ summary: 'Get all calls' })
   async getCalls(@Query() query: any, @Request() req: any) {
     return this.callsService.getCalls(query, req.user);
@@ -33,7 +33,7 @@ export class CallsController {
   @Get('stats')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR)
+  @Roles(UserRole.admin, UserRole.director)
   @ApiOperation({ summary: 'Get call statistics' })
   async getCallStats(@Query() query: any) {
     return this.callsService.getCallStats(query);
@@ -42,7 +42,7 @@ export class CallsController {
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN, UserRole.CALLCENTRE_OPERATOR, UserRole.DIRECTOR)
+  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
   @ApiOperation({ summary: 'Get call by ID' })
   async getCall(@Param('id') id: string) {
     return this.callsService.getCall(+id);
@@ -51,7 +51,7 @@ export class CallsController {
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN, UserRole.CALLCENTRE_OPERATOR)
+  @Roles(UserRole.admin, UserRole.operator)
   @ApiOperation({ summary: 'Create call manually' })
   async createCall(@Body() dto: CreateCallDto, @Request() req: any) {
     return this.callsService.createCall(dto, req.user);
@@ -60,7 +60,7 @@ export class CallsController {
   @Put(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN)
+  @Roles(UserRole.admin)
   @ApiOperation({ summary: 'Update call' })
   async updateCall(@Param('id') id: string, @Body() dto: UpdateCallDto) {
     return this.callsService.updateCall(+id, dto);
@@ -69,7 +69,7 @@ export class CallsController {
   @Get('by-phone/:phone')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.CALLCENTRE_ADMIN, UserRole.CALLCENTRE_OPERATOR, UserRole.DIRECTOR)
+  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
   @ApiOperation({ summary: 'Get calls by phone number' })
   async getCallsByPhone(@Param('phone') phone: string) {
     return this.callsService.getCallsByPhone(phone);
