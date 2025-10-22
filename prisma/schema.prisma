@@ -10,27 +10,27 @@ datasource db {
 // Calls from Mango Office
 model Call {
   id              Int       @id @default(autoincrement())
-  callId          String    @unique       // Уникальный ID звонка от Mango
-  phoneClient     String                  // Номер клиента
-  phoneOperator   String?                 // Номер оператора
-  direction       String                  // 'inbound' | 'outbound'
-  callDate        DateTime                // Дата/время звонка
-  duration        Int?                    // Длительность в секундах
-  status          String                  // 'answered', 'missed', 'busy', 'failed'
-  recordUrl       String?                 // Ссылка на запись
-  recordFile      String?                 // Локальный файл записи
-  operatorId      Int?                    // ID оператора (CallcentreOperator)
-  orderId         Int?                    // Связанный заказ
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  rk              String
+  city            String
+  avitoName       String?   @map("avito_name")
+  phoneClient     String    @map("phone_client")
+  phoneAts        String    @map("phone_ats")
+  dateCreate      DateTime  @map("date_create")
+  operatorId      Int       @map("operator_id")
+  status          String
+  callId          String?   @unique @map("call_id")
+  duration        Int?
+  recordUrl       String?   @map("record_url")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
   
-  order           Order?    @relation(fields: [orderId], references: [id])
-  operator        CallcentreOperator? @relation(fields: [operatorId], references: [id])
+  operator        CallcentreOperator @relation(fields: [operatorId], references: [id])
   
-  @@map("call")
-  @@index([phoneClient])
-  @@index([callDate])
+  @@map("calls")
+  @@index([city])
+  @@index([dateCreate])
   @@index([operatorId])
+  @@index([phoneClient])
 }
 
 // Related models
@@ -73,8 +73,6 @@ model Order {
   callcentreAdminId     Int?
   callcentreOperatorId  Int?
   
-  calls                 Call[]
-  
   @@map("order")
 }
 
@@ -83,10 +81,16 @@ model CallcentreOperator {
   name           String
   login          String    @unique
   password       String
-  sipAddress     String?   @map("sip_address")
-  statusWork     String?   @map("status_work")
-  dateCreate     DateTime  @default(now()) @map("date_create")
+  city           String
+  status         String
+  statusWork     String    @map("status_work")
+  passport       String?
+  contract       String?
+  dateCreate     DateTime  @map("date_create")
   note           String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  sipAddress     String?   @map("sip_address")
   
   calls          Call[]
   
