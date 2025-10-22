@@ -75,7 +75,7 @@ export class WebhookService {
         where: { callId: call_id },
         data: {
           phoneClient: from?.number || from,
-          phoneOperator: to?.number || to,
+          phoneAts: to?.number || to,
         },
       });
     }
@@ -118,11 +118,12 @@ export class WebhookService {
       // Создаем новый звонок
       call = await this.prisma.call.create({
         data: {
+          rk: 'MANGO',
+          city: operator.city || '',
           callId: call_id,
           phoneClient: from?.number || from,
-          phoneOperator: to?.number || to,
-          direction: 'inbound',
-          callDate: new Date(create_time || answer_time || timestamp * 1000),
+          phoneAts: to?.number || to,
+          dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
         },
@@ -180,11 +181,12 @@ export class WebhookService {
       
       call = await this.prisma.call.create({
         data: {
+          rk: 'MANGO',
+          city: operator?.city || '',
           callId: call_id,
           phoneClient: from?.number || from,
-          phoneOperator: to?.number || to,
-          direction: 'inbound',
-          callDate: new Date(create_time || timestamp * 1000),
+          phoneAts: to?.number || to,
+          dateCreate: new Date(create_time || timestamp * 1000),
           status,
           duration,
           operatorId: operator?.id || 1, // Fallback to operator 1
@@ -228,9 +230,10 @@ export class WebhookService {
       end_time,
     } = payload;
 
-    const direction = command_id === 'USER_CALL' ? 'outbound' : 'inbound';
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
+    const sipUsername = this.mangoService.extractSipUsername(to);
+    const operator = await this.findOperatorBySip(sipUsername);
 
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -243,20 +246,22 @@ export class WebhookService {
         data: {
           status,
           duration,
-          phoneOperator: to,
-          callDate: new Date(create_time || timestamp * 1000),
+          phoneAts: to,
+          dateCreate: new Date(create_time || timestamp * 1000),
         },
       });
     } else {
       call = await this.prisma.call.create({
         data: {
+          rk: 'MANGO',
+          city: operator?.city || '',
           callId: call_id,
           phoneClient: from,
-          phoneOperator: to,
-          direction,
-          callDate: new Date(create_time || timestamp * 1000),
+          phoneAts: to,
+          dateCreate: new Date(create_time || timestamp * 1000),
           duration,
           status,
+          operatorId: operator?.id || 1,
         },
       });
     }
@@ -359,7 +364,6 @@ export class WebhookService {
             await this.prisma.call.update({
               where: { id: call.id },
               data: {
-                recordFile: s3Key,
                 recordUrl: `s3://${s3Key}`,
               },
             });
@@ -368,7 +372,7 @@ export class WebhookService {
 
             // Broadcast обновления
             await this.realtimeService.broadcastCallUpdated(
-              { ...call, recordFile: s3Key },
+              { ...call, recordUrl: `s3://${s3Key}` },
               ['operators'],
             );
 

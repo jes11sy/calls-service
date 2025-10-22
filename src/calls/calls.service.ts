@@ -7,17 +7,13 @@ export class CallsService {
   constructor(private prisma: PrismaService) {}
 
   async getCalls(query: any, user: any) {
-    const { direction, status, operatorId, startDate, endDate, phone } = query;
+    const { status, operatorId, startDate, endDate, phone, city } = query;
 
     const where: any = {};
 
     // Если это оператор - показываем только его звонки
     if (user.role === 'CALLCENTRE_OPERATOR') {
       where.operatorId = user.userId;
-    }
-
-    if (direction) {
-      where.direction = direction;
     }
 
     if (status) {
@@ -28,32 +24,28 @@ export class CallsService {
       where.operatorId = +operatorId;
     }
 
+    if (city) {
+      where.city = city;
+    }
+
     if (phone) {
       where.phoneClient = { contains: phone };
     }
 
     if (startDate || endDate) {
-      where.callDate = {};
-      if (startDate) where.callDate.gte = new Date(startDate);
-      if (endDate) where.callDate.lte = new Date(endDate);
+      where.dateCreate = {};
+      if (startDate) where.dateCreate.gte = new Date(startDate);
+      if (endDate) where.dateCreate.lte = new Date(endDate);
     }
 
     const calls = await this.prisma.call.findMany({
       where,
-      orderBy: { callDate: 'desc' },
+      orderBy: { dateCreate: 'desc' },
       include: {
         operator: {
           select: {
             id: true,
             name: true,
-          },
-        },
-        order: {
-          select: {
-            id: true,
-            rk: true,
-            clientName: true,
-            statusOrder: true,
           },
         },
       },
@@ -76,7 +68,6 @@ export class CallsService {
             name: true,
           },
         },
-        order: true,
       },
     });
 
@@ -93,16 +84,17 @@ export class CallsService {
   async createCall(dto: CreateCallDto, user: any) {
     const call = await this.prisma.call.create({
       data: {
+        rk: dto.rk || 'MANUAL',
+        city: dto.city || '',
+        avitoName: dto.avitoName,
         callId: dto.callId || `MANUAL-${Date.now()}`,
         phoneClient: dto.phoneClient,
-        phoneOperator: dto.phoneOperator,
-        direction: dto.direction,
-        callDate: new Date(dto.callDate || Date.now()),
+        phoneAts: dto.phoneAts || '',
+        dateCreate: new Date(dto.dateCreate || Date.now()),
         duration: dto.duration,
         status: dto.status,
         recordUrl: dto.recordUrl,
         operatorId: user.userId,
-        orderId: dto.orderId,
       },
     });
 
@@ -120,8 +112,6 @@ export class CallsService {
         ...(dto.status && { status: dto.status }),
         ...(dto.duration !== undefined && { duration: dto.duration }),
         ...(dto.recordUrl && { recordUrl: dto.recordUrl }),
-        ...(dto.recordFile && { recordFile: dto.recordFile }),
-        ...(dto.orderId !== undefined && { orderId: dto.orderId }),
       },
     });
 
@@ -137,19 +127,12 @@ export class CallsService {
       where: {
         phoneClient: { contains: phone },
       },
-      orderBy: { callDate: 'desc' },
+      orderBy: { dateCreate: 'desc' },
       include: {
         operator: {
           select: {
             id: true,
             name: true,
-          },
-        },
-        order: {
-          select: {
-            id: true,
-            rk: true,
-            clientName: true,
           },
         },
       },
@@ -163,14 +146,18 @@ export class CallsService {
   }
 
   async getCallStats(query: any) {
-    const { startDate, endDate } = query;
+    const { startDate, endDate, city } = query;
 
     const where: any = {};
 
+    if (city) {
+      where.city = city;
+    }
+
     if (startDate || endDate) {
-      where.callDate = {};
-      if (startDate) where.callDate.gte = new Date(startDate);
-      if (endDate) where.callDate.lte = new Date(endDate);
+      where.dateCreate = {};
+      if (startDate) where.dateCreate.gte = new Date(startDate);
+      if (endDate) where.dateCreate.lte = new Date(endDate);
     }
 
     const [totalCalls, answeredCalls, missedCalls, totalDuration] = await Promise.all([

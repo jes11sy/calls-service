@@ -5,6 +5,21 @@ export class CreateCallDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  rk?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  avitoName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   callId?: string;
 
   @ApiProperty()
@@ -14,37 +29,27 @@ export class CreateCallDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
-  phoneOperator?: string;
-
-  @ApiProperty({ enum: ['inbound', 'outbound'] })
-  @IsString()
-  @IsIn(['inbound', 'outbound'])
-  direction: string;
+  phoneAts?: string;
 
   @ApiProperty({ required: false })
   @IsDateString()
   @IsOptional()
-  callDate?: string;
+  dateCreate?: string;
 
   @ApiProperty({ required: false })
   @IsNumber()
   @IsOptional()
   duration?: number;
 
-  @ApiProperty({ enum: ['answered', 'missed', 'busy', 'failed'] })
+  @ApiProperty({ enum: ['answered', 'missed', 'busy', 'no_answer'] })
   @IsString()
-  @IsIn(['answered', 'missed', 'busy', 'failed'])
+  @IsIn(['answered', 'missed', 'busy', 'no_answer'])
   status: string;
 
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
   recordUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @IsOptional()
-  orderId?: number;
 }
 
 export class UpdateCallDto {
@@ -62,16 +67,6 @@ export class UpdateCallDto {
   @IsString()
   @IsOptional()
   recordUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  recordFile?: string;
-
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @IsOptional()
-  orderId?: number;
 }
 
 
