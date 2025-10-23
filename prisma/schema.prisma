@@ -9,20 +9,22 @@ datasource db {
 
 // Calls from Mango Office
 model Call {
-  id              Int       @id @default(autoincrement())
-  rk              String
-  city            String
-  avitoName       String?   @map("avito_name")
-  phoneClient     String    @map("phone_client")
-  phoneAts        String    @map("phone_ats")
-  dateCreate      DateTime  @map("date_create")
-  operatorId      Int       @map("operator_id")
-  status          String
-  callId          String?   @unique @map("call_id")
-  duration        Int?
-  recordUrl       String?   @map("record_url")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement())
+  rk                   String
+  city                 String
+  avitoName            String?   @map("avito_name")
+  phoneClient          String    @map("phone_client")
+  phoneAts             String    @map("phone_ats")
+  dateCreate           DateTime  @map("date_create")
+  operatorId           Int       @map("operator_id")
+  status               String
+  callId               String?   @unique @map("call_id")
+  duration             Int?
+  recordUrl            String?   @map("record_url")
+  recordingPath        String?   @map("recording_path")
+  recordingProcessedAt DateTime? @map("recording_processed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
   
   operator        CallcentreOperator @relation(fields: [operatorId], references: [id])
   
@@ -31,6 +33,7 @@ model Call {
   @@index([dateCreate])
   @@index([operatorId])
   @@index([phoneClient])
+  @@index([callId])
 }
 
 // Related models

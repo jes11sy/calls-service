@@ -365,6 +365,8 @@ export class WebhookService {
               where: { id: call.id },
               data: {
                 recordUrl: `s3://${s3Key}`,
+                recordingPath: s3Key,
+                recordingProcessedAt: new Date(),
               },
             });
 
@@ -372,7 +374,7 @@ export class WebhookService {
 
             // Broadcast обновления
             await this.realtimeService.broadcastCallUpdated(
-              { ...call, recordUrl: `s3://${s3Key}` },
+              { ...call, recordUrl: `s3://${s3Key}`, recordingPath: s3Key, recordingProcessedAt: new Date() },
               ['operators'],
             );
 
