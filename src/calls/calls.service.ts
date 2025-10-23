@@ -44,11 +44,27 @@ export class CallsService {
     const calls = await this.prisma.call.findMany({
       where,
       orderBy: { dateCreate: 'desc' },
-      include: {
+      select: {
+        id: true,
+        rk: true,
+        city: true,
+        avitoName: true,
+        phoneClient: true,
+        phoneAts: true,
+        dateCreate: true,
+        status: true,
+        callId: true,
+        duration: true,
+        recordUrl: true,
+        recordingPath: true,
+        recordingProcessedAt: true,
+        createdAt: true,
+        updatedAt: true,
         operator: {
           select: {
             id: true,
             name: true,
+            login: true,
           },
         },
       },
@@ -73,11 +89,27 @@ export class CallsService {
   async getCall(id: number) {
     const call = await this.prisma.call.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        rk: true,
+        city: true,
+        avitoName: true,
+        phoneClient: true,
+        phoneAts: true,
+        dateCreate: true,
+        status: true,
+        callId: true,
+        duration: true,
+        recordUrl: true,
+        recordingPath: true,
+        recordingProcessedAt: true,
+        createdAt: true,
+        updatedAt: true,
         operator: {
           select: {
             id: true,
             name: true,
+            login: true,
           },
         },
       },
@@ -140,11 +172,27 @@ export class CallsService {
         phoneClient: { contains: phone },
       },
       orderBy: { dateCreate: 'desc' },
-      include: {
+      select: {
+        id: true,
+        rk: true,
+        city: true,
+        avitoName: true,
+        phoneClient: true,
+        phoneAts: true,
+        dateCreate: true,
+        status: true,
+        callId: true,
+        duration: true,
+        recordUrl: true,
+        recordingPath: true,
+        recordingProcessedAt: true,
+        createdAt: true,
+        updatedAt: true,
         operator: {
           select: {
             id: true,
             name: true,
+            login: true,
           },
         },
       },
