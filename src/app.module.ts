@@ -7,6 +7,7 @@ import { WebhookModule } from './webhook/webhook.module';
 import { MangoModule } from './mango/mango.module';
 import { S3Module } from './s3/s3.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { RecordingsModule } from './recordings/recordings.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     MangoModule,
     S3Module,
     RealtimeModule,
+    RecordingsModule,
   ],
 })
 export class AppModule {}
