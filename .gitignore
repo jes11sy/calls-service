@@ -30,9 +30,8 @@ npm-debug.log*
 # Prisma
 prisma/migrations/
 
-# Recordings
+# Uploads
 uploads/
-recordings/
 
 
 
