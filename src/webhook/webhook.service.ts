@@ -99,6 +99,35 @@ export class WebhookService {
       return { success: true, message: 'Operator not found' };
     }
 
+    // Создаем или находим номер телефона АТС
+    const phoneAts = to?.number || to;
+    let phone = await this.prisma.phone.findUnique({
+      where: { number: phoneAts },
+    });
+
+    if (!phone) {
+      try {
+        phone = await this.prisma.phone.create({
+          data: {
+            number: phoneAts,
+            rk: 'Неизвестно',
+            city: operator.city || 'Неизвестно',
+            avitoName: null,
+          },
+        });
+        this.logger.log(`Created new phone number: ${phoneAts}`);
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          // Номер уже создан параллельным запросом
+          phone = await this.prisma.phone.findUnique({
+            where: { number: phoneAts },
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -112,6 +141,7 @@ export class WebhookService {
         data: {
           status: 'answered',
           operatorId: operator.id,
+          mangoData: payload,
         },
       });
     } else {
@@ -122,10 +152,11 @@ export class WebhookService {
           city: operator.city || '',
           callId: call_id,
           phoneClient: from?.number || from,
-          phoneAts: to?.number || to,
+          phoneAts: phoneAts,
           dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
+          mangoData: payload,
         },
       });
 
@@ -152,6 +183,34 @@ export class WebhookService {
     const duration = this.mangoService.calculateDuration(payload);
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
 
+    // Создаем или находим номер телефона АТС
+    const phoneAts = to?.number || to;
+    let phone = await this.prisma.phone.findUnique({
+      where: { number: phoneAts },
+    });
+
+    if (!phone) {
+      try {
+        phone = await this.prisma.phone.create({
+          data: {
+            number: phoneAts,
+            rk: 'Неизвестно',
+            city: 'Неизвестно',
+            avitoName: null,
+          },
+        });
+        this.logger.log(`Created new phone number: ${phoneAts}`);
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          phone = await this.prisma.phone.findUnique({
+            where: { number: phoneAts },
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
     // Ищем существующий звонок
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -165,6 +224,7 @@ export class WebhookService {
         data: {
           status,
           duration,
+          mangoData: payload,
         },
         include: {
           operator: {
@@ -185,11 +245,12 @@ export class WebhookService {
           city: operator?.city || '',
           callId: call_id,
           phoneClient: from?.number || from,
-          phoneAts: to?.number || to,
+          phoneAts: phoneAts,
           dateCreate: new Date(create_time || timestamp * 1000),
           status,
           duration,
           operatorId: operator?.id || 1, // Fallback to operator 1
+          mangoData: payload,
         },
         include: {
           operator: {
@@ -235,6 +296,33 @@ export class WebhookService {
     const sipUsername = this.mangoService.extractSipUsername(to);
     const operator = await this.findOperatorBySip(sipUsername);
 
+    // Создаем или находим номер телефона АТС
+    let phone = await this.prisma.phone.findUnique({
+      where: { number: to },
+    });
+
+    if (!phone) {
+      try {
+        phone = await this.prisma.phone.create({
+          data: {
+            number: to,
+            rk: 'Неизвестно',
+            city: operator?.city || 'Неизвестно',
+            avitoName: null,
+          },
+        });
+        this.logger.log(`Created new phone number: ${to}`);
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          phone = await this.prisma.phone.findUnique({
+            where: { number: to },
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
     });
@@ -248,6 +336,7 @@ export class WebhookService {
           duration,
           phoneAts: to,
           dateCreate: new Date(create_time || timestamp * 1000),
+          mangoData: payload,
         },
       });
     } else {
@@ -262,6 +351,7 @@ export class WebhookService {
           duration,
           status,
           operatorId: operator?.id || 1,
+          mangoData: payload,
         },
       });
     }

@@ -1,5 +1,97 @@
 # Changelog - Calls Service
 
+## [2.1.0] - 2024-12-19
+
+### 🚀 New Features
+
+#### Enhanced Database Schema
+- ✅ Added `mangoData` (Json) field to store complete Mango Office webhook data
+- ✅ Added `recordingEmailSent` field to track email notifications
+- ✅ Added `Phone` model for managing phone numbers
+- ✅ Added `Avito` model for Avito integration
+- ✅ Enhanced relationships between Call, Phone, and Avito models
+
+#### Automatic Phone Number Management
+- ✅ Automatic creation of phone numbers in database
+- ✅ Phone number lookup and association with calls
+- ✅ City and RK assignment from operator data
+
+#### Enhanced Webhook Processing
+- ✅ Store complete Mango Office webhook data in `mangoData` field
+- ✅ Improved operator lookup by SIP address
+- ✅ Better error handling for phone number creation
+- ✅ Enhanced logging for debugging
+
+### 📊 Database Changes
+
+**New fields in Call model:**
+- `mangoData: Json?` - Complete webhook data from Mango Office
+- `recordingEmailSent: Boolean` - Track email notifications
+
+**New models:**
+- `Phone` - Phone number management
+- `Avito` - Avito account integration
+
+### 🔄 Migration Required
+
+```sql
+-- Add new fields to calls table
+ALTER TABLE calls ADD COLUMN mango_data JSONB;
+ALTER TABLE calls ADD COLUMN recording_email_sent BOOLEAN DEFAULT FALSE;
+
+-- Create phones table
+CREATE TABLE phones (
+  id SERIAL PRIMARY KEY,
+  number VARCHAR UNIQUE NOT NULL,
+  rk VARCHAR NOT NULL,
+  city VARCHAR NOT NULL,
+  avito_name VARCHAR,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create avito table
+CREATE TABLE avito (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR UNIQUE NOT NULL,
+  client_id VARCHAR NOT NULL,
+  client_secret VARCHAR NOT NULL,
+  proxy_type VARCHAR,
+  proxy_host VARCHAR,
+  proxy_port INTEGER,
+  proxy_login VARCHAR,
+  proxy_password VARCHAR,
+  connection_status VARCHAR DEFAULT 'not_checked',
+  proxy_status VARCHAR DEFAULT 'not_checked',
+  account_balance DECIMAL DEFAULT 0,
+  ads_count INTEGER DEFAULT 0,
+  views_count INTEGER DEFAULT 0,
+  contacts_count INTEGER DEFAULT 0,
+  views_today INTEGER DEFAULT 0,
+  contacts_today INTEGER DEFAULT 0,
+  last_sync_at TIMESTAMP,
+  eternal_online_enabled BOOLEAN DEFAULT FALSE,
+  is_online BOOLEAN DEFAULT FALSE,
+  last_online_check TIMESTAMP,
+  online_keep_alive_interval INTEGER DEFAULT 300,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add foreign key constraints
+ALTER TABLE calls ADD CONSTRAINT fk_calls_phone 
+  FOREIGN KEY (phone_ats) REFERENCES phones(number);
+
+ALTER TABLE calls ADD CONSTRAINT fk_calls_avito 
+  FOREIGN KEY (avito_name) REFERENCES avito(name);
+
+-- Add indexes
+CREATE INDEX idx_calls_phone_ats ON calls(phone_ats);
+CREATE INDEX idx_calls_avito_name ON calls(avito_name);
+```
+
+---
+
 ## [2.0.0] - 2024-10-22
 
 ### 🚀 Major Features

@@ -58,6 +58,8 @@ export class CallsService {
         recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
+        recordingEmailSent: true,
+        mangoData: true,
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -65,6 +67,22 @@ export class CallsService {
             id: true,
             name: true,
             login: true,
+          },
+        },
+        phone: {
+          select: {
+            id: true,
+            number: true,
+            rk: true,
+            city: true,
+            avitoName: true,
+          },
+        },
+        avito: {
+          select: {
+            id: true,
+            name: true,
+            connectionStatus: true,
           },
         },
       },
@@ -103,6 +121,8 @@ export class CallsService {
         recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
+        recordingEmailSent: true,
+        mangoData: true,
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -110,6 +130,25 @@ export class CallsService {
             id: true,
             name: true,
             login: true,
+            city: true,
+            sipAddress: true,
+          },
+        },
+        phone: {
+          select: {
+            id: true,
+            number: true,
+            rk: true,
+            city: true,
+            avitoName: true,
+          },
+        },
+        avito: {
+          select: {
+            id: true,
+            name: true,
+            connectionStatus: true,
+            isOnline: true,
           },
         },
       },
@@ -186,6 +225,8 @@ export class CallsService {
         recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
+        recordingEmailSent: true,
+        mangoData: true,
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -193,6 +234,25 @@ export class CallsService {
             id: true,
             name: true,
             login: true,
+            city: true,
+            sipAddress: true,
+          },
+        },
+        phone: {
+          select: {
+            id: true,
+            number: true,
+            rk: true,
+            city: true,
+            avitoName: true,
+          },
+        },
+        avito: {
+          select: {
+            id: true,
+            name: true,
+            connectionStatus: true,
+            isOnline: true,
           },
         },
       },

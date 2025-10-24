@@ -23,16 +23,22 @@ model Call {
   recordUrl            String?   @map("record_url")
   recordingPath        String?   @map("recording_path")
   recordingProcessedAt DateTime? @map("recording_processed_at")
+  recordingEmailSent   Boolean   @default(false) @map("recording_email_sent")
+  mangoData            Json?     @map("mango_data")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   
   operator        CallcentreOperator @relation(fields: [operatorId], references: [id])
+  phone           Phone?             @relation(fields: [phoneAts], references: [number])
+  avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name])
   
   @@map("calls")
   @@index([city])
   @@index([dateCreate])
   @@index([operatorId])
   @@index([phoneClient])
+  @@index([phoneAts])
+  @@index([avitoName])
   @@index([callId])
 }
 
@@ -98,6 +104,51 @@ model CallcentreOperator {
   calls          Call[]
   
   @@map("callcentre_operator")
+}
+
+model Phone {
+  id        Int      @id @default(autoincrement())
+  number    String   @unique
+  rk        String
+  city      String
+  avitoName String?  @map("avito_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  calls     Call[]
+  
+  @@map("phones")
+}
+
+model Avito {
+  id                      Int       @id @default(autoincrement())
+  name                    String    @unique
+  clientId                String    @map("client_id")
+  clientSecret            String    @map("client_secret")
+  proxyType               String?   @map("proxy_type")
+  proxyHost               String?   @map("proxy_host")
+  proxyPort               Int?      @map("proxy_port")
+  proxyLogin              String?   @map("proxy_login")
+  proxyPassword           String?   @map("proxy_password")
+  connectionStatus        String?   @default("not_checked") @map("connection_status")
+  proxyStatus             String?   @default("not_checked") @map("proxy_status")
+  accountBalance          Float?    @default(0) @map("account_balance")
+  adsCount                Int?      @default(0) @map("ads_count")
+  viewsCount              Int?      @default(0) @map("views_count")
+  contactsCount           Int?      @default(0) @map("contacts_count")
+  viewsToday              Int?      @default(0) @map("views_today")
+  contactsToday           Int?      @default(0) @map("contacts_today")
+  lastSyncAt              DateTime? @map("last_sync_at")
+  eternalOnlineEnabled    Boolean?  @default(false) @map("eternal_online_enabled")
+  isOnline                Boolean?  @default(false) @map("is_online")
+  lastOnlineCheck         DateTime? @map("last_online_check")
+  onlineKeepAliveInterval Int?      @default(300) @map("online_keep_alive_interval")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  
+  calls                   Call[]    @relation("AvitoCalls")
+  
+  @@map("avito")
 }
 
 
