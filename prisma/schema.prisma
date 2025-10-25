@@ -82,7 +82,7 @@ model orders {
   callcentreAdminId     Int?
   callcentreOperatorId  Int?
   
-  @@map("order")
+  @@map("orders")
 }
 
 model CallcentreOperator {
