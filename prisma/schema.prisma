@@ -43,7 +43,7 @@ model Call {
 }
 
 // Related models
-model Order {
+model orders {
   id                    Int       @id @default(autoincrement())
   rk                    String
   city                  String
