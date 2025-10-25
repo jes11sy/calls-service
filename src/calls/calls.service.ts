@@ -301,6 +301,55 @@ export class CallsService {
       },
     };
   }
+
+  async getCallsByOrderId(orderId: number) {
+    // Получаем заказ
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId }
+    });
+
+    if (!order) {
+      throw new NotFoundException('Заказ не найден');
+    }
+
+    let calls = [];
+
+    if (order.callId) {
+      // Парсим массив ID из строки (например: "145,182,215")
+      const callIds = order.callId.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      
+      if (callIds.length > 0) {
+        // Ищем звонки по массиву ID и фильтруем только те, у которых есть запись
+        calls = await this.prisma.call.findMany({
+          where: {
+            id: {
+              in: callIds
+            },
+            recordingPath: {
+              not: null // Только звонки с записями
+            }
+          },
+          include: {
+            operator: {
+              select: {
+                id: true,
+                name: true,
+                login: true
+              }
+            }
+          },
+          orderBy: {
+            dateCreate: 'desc'
+          }
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: calls
+    };
+  }
 }
 
 
