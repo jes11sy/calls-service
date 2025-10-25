@@ -43,45 +43,52 @@ model Call {
 }
 
 // Related models
-model orders {
-  id                    Int       @id @default(autoincrement())
-  rk                    String
-  city                  String
-  avitoName             String?
-  phone                 String
-  typeOrder             String
-  clientName            String
-  address               String
-  dateMeeting           String
-  typeEquipment         String
-  problem               String
-  callRecord            String?
-  statusOrder           String
-  masterId              Int?
-  result                Int?
-  expenditure           Int?
-  clean                 Int?
-  masterChange          Int?
-  bsoDoc                String?
-  expenditureDoc        String?
-  operatorNameId        Int
-  createDate            DateTime  @default(now())
-  closingData           String?
-  avitoChatId           String?
-  callId                String?
-  prepayment            Int?
-  dateClosmod           String?
-  comment               String?
-  cashSubmissionStatus  String?
-  cashSubmissionDate    DateTime?
-  cashSubmissionAmount  Int?
-  cashReceiptDoc        String?
-  cashApprovedBy        Int?
-  cashApprovedDate      DateTime?
-  directorId            Int?
-  callcentreAdminId     Int?
-  callcentreOperatorId  Int?
+model Order {
+  id             Int                @id @default(autoincrement())
+  rk             String
+  city           String
+  avitoName      String?            @map("avito_name")
+  phone          String
+  typeOrder      String             @map("type_order")
+  clientName     String             @map("client_name")
+  address        String
+  dateMeeting    DateTime           @map("date_meeting")
+  typeEquipment  String             @map("type_equipment")
+  problem        String
+  callRecord     String?            @map("call_record")
+  statusOrder    String             @map("status_order")
+  masterId       Int?               @map("master_id")
+  result         Decimal?           @db.Decimal(10, 2)
+  expenditure    Decimal?           @db.Decimal(10, 2)
+  clean          Decimal?           @db.Decimal(10, 2)
+  masterChange   Decimal?           @map("master_change") @db.Decimal(10, 2)
+  bsoDoc         String?            @map("bso_doc")
+  expenditureDoc String?            @map("expenditure_doc")
+  operatorNameId Int                @map("operator_name_id")
+  createDate     DateTime           @map("create_date")
+  closingData    DateTime?          @map("closing_data")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  avitoChatId    String?            @map("avito_chatid")
+  callId         String?            @map("call_id")
+  prepayment     Decimal?           @db.Decimal(10, 2)
+  dateClosmod    DateTime?          @map("date_closmod")
+  comment        String?
+  cashSubmissionStatus String?      @default("Готово") @map("cash_submission_status")
+  cashSubmissionDate   DateTime?    @map("cash_submission_date")
+  cashSubmissionAmount Decimal?     @map("cash_submission_amount") @db.Decimal(10, 2)
+  cashReceiptDoc       String?      @map("cash_receipt_doc")
+  cashApprovedBy       Int?         @map("cash_approved_by")
+  cashApprovedDate     DateTime?    @map("cash_approved_date")
   
+  @@index([statusOrder, city])
+  @@index([closingData])
+  @@index([masterId, city, closingData])
+  @@index([phone])
+  @@index([createDate, city])
+  @@index([operatorNameId])
+  @@index([createDate])
+  @@index([avitoName])
   @@map("orders")
 }
 

@@ -304,7 +304,7 @@ export class CallsService {
 
   async getCallsByOrderId(orderId: number) {
     // Получаем заказ
-    const order = await this.prisma.orders.findUnique({
+    const order = await this.prisma.order.findUnique({
       where: { id: orderId }
     });
 
