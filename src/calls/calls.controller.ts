@@ -45,7 +45,7 @@ export class CallsController {
   @Roles(UserRole.admin, UserRole.operator, UserRole.director, UserRole.master)
   @ApiOperation({ summary: 'Get calls by order ID (only calls with recordings)' })
   async getCallsByOrderId(@Param('orderId') orderId: string) {
-    return this.callsService.getCallsByOrderId(+orderId);
+    return this.callsService.getCallsByOrderId(orderId);
   }
 
   @Get(':id')

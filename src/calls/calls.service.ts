@@ -302,10 +302,13 @@ export class CallsService {
     };
   }
 
-  async getCallsByOrderId(orderId: number) {
+  async getCallsByOrderId(orderId: string | number) {
+    // Преобразуем в число если это строка с одним ID
+    const orderIdNum = typeof orderId === 'string' ? parseInt(orderId) : orderId;
+    
     // Получаем заказ
     const order = await this.prisma.order.findUnique({
-      where: { id: orderId }
+      where: { id: orderIdNum }
     });
 
     if (!order) {
@@ -329,7 +332,20 @@ export class CallsService {
               not: null // Только звонки с записями
             }
           },
-          include: {
+          select: {
+            id: true,
+            rk: true,
+            city: true,
+            phoneClient: true,
+            phoneAts: true,
+            dateCreate: true,
+            status: true,
+            callId: true,
+            duration: true,
+            recordUrl: true,
+            recordingPath: true,
+            createdAt: true,
+            updatedAt: true,
             operator: {
               select: {
                 id: true,
@@ -345,9 +361,15 @@ export class CallsService {
       }
     }
 
+    // Преобразуем recordUrl в recordingUrl для совместимости с фронтендом
+    const callsWithRecordingUrl = calls.map(call => ({
+      ...call,
+      recordingUrl: call.recordUrl || call.recordingPath
+    }));
+
     return {
       success: true,
-      data: calls
+      data: callsWithRecordingUrl
     };
   }
 }
