@@ -30,3 +30,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
 
 
+
+
+
+
+
+

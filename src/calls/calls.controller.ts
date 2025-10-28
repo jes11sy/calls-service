@@ -42,7 +42,7 @@ export class CallsController {
   @Get('order/:orderId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
+  @Roles(UserRole.admin, UserRole.operator, UserRole.director, UserRole.master)
   @ApiOperation({ summary: 'Get calls by order ID (only calls with recordings)' })
   async getCallsByOrderId(@Param('orderId') orderId: string) {
     return this.callsService.getCallsByOrderId(+orderId);
