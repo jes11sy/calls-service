@@ -1,15 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
+import { createRetryableAxiosInstance } from '../common/utils/axios-config';
 
 @Injectable()
 export class RealtimeService {
   private readonly logger = new Logger(RealtimeService.name);
   private readonly realtimeUrl: string;
   private readonly webhookToken: string;
+  private readonly axiosInstance;
 
   constructor() {
     this.realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://realtime-service:5009';
     this.webhookToken = process.env.WEBHOOK_TOKEN || '';
+    this.axiosInstance = createRetryableAxiosInstance(5000, 3);
 
     if (!this.webhookToken) {
       this.logger.warn('⚠️ WEBHOOK_TOKEN not configured - realtime broadcasts disabled');
@@ -23,7 +25,7 @@ export class RealtimeService {
     }
 
     try {
-      await axios.post(
+      await this.axiosInstance.post(
         `${this.realtimeUrl}/api/v1/broadcast/call-new`,
         {
           token: this.webhookToken,
@@ -40,8 +42,7 @@ export class RealtimeService {
             operatorId: call.operatorId,
           },
           rooms,
-        },
-        { timeout: 5000 }
+        }
       );
 
       this.logger.log(`✅ Broadcasted new call: ${call.id}`);
@@ -56,7 +57,7 @@ export class RealtimeService {
     }
 
     try {
-      await axios.post(
+      await this.axiosInstance.post(
         `${this.realtimeUrl}/api/v1/broadcast/call-updated`,
         {
           token: this.webhookToken,
@@ -70,8 +71,7 @@ export class RealtimeService {
             operatorId: call.operatorId,
           },
           rooms,
-        },
-        { timeout: 5000 }
+        }
       );
 
       this.logger.log(`✅ Broadcasted call update: ${call.id}`);
@@ -86,7 +86,7 @@ export class RealtimeService {
     }
 
     try {
-      await axios.post(
+      await this.axiosInstance.post(
         `${this.realtimeUrl}/api/v1/broadcast/call-ended`,
         {
           token: this.webhookToken,
@@ -99,8 +99,7 @@ export class RealtimeService {
             operatorId: call.operatorId,
           },
           rooms,
-        },
-        { timeout: 5000 }
+        }
       );
 
       this.logger.log(`✅ Broadcasted call ended: ${call.id}`);

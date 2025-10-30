@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CallsService } from './calls.service';
 import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
+import { GetCallsQueryDto } from './dto/call-query.dto';
 import { RolesGuard, Roles, UserRole } from '../auth/roles.guard';
 
 @ApiTags('calls')
@@ -26,7 +27,7 @@ export class CallsController {
   @ApiBearerAuth()
   @Roles(UserRole.admin, UserRole.operator, UserRole.director)
   @ApiOperation({ summary: 'Get all calls' })
-  async getCalls(@Query() query: any, @Request() req: any) {
+  async getCalls(@Query() query: GetCallsQueryDto, @Request() req: any) {
     return this.callsService.getCalls(query, req.user);
   }
 

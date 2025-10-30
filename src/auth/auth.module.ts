@@ -7,7 +7,16 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: (() => {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+          throw new Error('JWT_SECRET environment variable is required');
+        }
+        if (secret === 'your-secret-key') {
+          throw new Error('JWT_SECRET must be changed from default value');
+        }
+        return secret;
+      })(),
       signOptions: { expiresIn: '1h' },
     }),
   ],

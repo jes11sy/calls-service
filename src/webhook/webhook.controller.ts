@@ -1,6 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
+import { MangoWebhookDto, MangoRecordingWebhookDto } from './dto/mango-webhook.dto';
 
 @ApiTags('webhook')
 @Controller('webhook')
@@ -12,8 +13,8 @@ export class WebhookController {
   @Post('mango')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mango Office webhook endpoint' })
-  async mangoWebhook(@Body() payload: any) {
-    this.logger.log(`Received Mango webhook: ${JSON.stringify(payload)}`);
+  async mangoWebhook(@Body() payload: MangoWebhookDto) {
+    this.logger.log(`Received Mango webhook: ${payload.call_id} - ${payload.call_state}`);
     
     try {
       const result = await this.webhookService.processMangoWebhook(payload);
@@ -28,8 +29,8 @@ export class WebhookController {
   @Post('mango/recording')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mango Office recording webhook' })
-  async mangoRecordingWebhook(@Body() payload: any) {
-    this.logger.log(`Received Mango recording webhook: ${JSON.stringify(payload)}`);
+  async mangoRecordingWebhook(@Body() payload: MangoRecordingWebhookDto) {
+    this.logger.log(`Received Mango recording webhook: ${payload.recording_id}`);
     
     try {
       const result = await this.webhookService.processMangoRecording(payload);

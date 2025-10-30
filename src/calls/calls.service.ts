@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
+import { AuditLoggerService } from '../common/services/audit-logger.service';
 
 @Injectable()
 export class CallsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditLogger: AuditLoggerService,
+  ) {}
 
   async getCalls(query: any, user: any) {
     const { status, operatorId, startDate, endDate, phone, city } = query;
@@ -59,7 +63,7 @@ export class CallsService {
         recordingPath: true,
         recordingProcessedAt: true,
         recordingEmailSent: true,
-        mangoData: true,
+        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -122,7 +126,7 @@ export class CallsService {
         recordingPath: true,
         recordingProcessedAt: true,
         recordingEmailSent: true,
-        mangoData: true,
+        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -181,6 +185,11 @@ export class CallsService {
       },
     });
 
+    this.auditLogger.logCallCreated(call.id, user.userId, user.login, {
+      phoneClient: dto.phoneClient,
+      status: dto.status,
+    });
+
     return {
       success: true,
       message: 'Call created successfully',
@@ -196,6 +205,10 @@ export class CallsService {
         ...(dto.duration !== undefined && { duration: dto.duration }),
         ...(dto.recordUrl && { recordUrl: dto.recordUrl }),
       },
+    });
+
+    this.auditLogger.logCallUpdated(call.id, undefined, undefined, {
+      changes: dto,
     });
 
     return {
@@ -226,7 +239,7 @@ export class CallsService {
         recordingPath: true,
         recordingProcessedAt: true,
         recordingEmailSent: true,
-        mangoData: true,
+        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -299,6 +312,31 @@ export class CallsService {
         totalDuration: totalDuration._sum.duration || 0,
         avgDuration: answeredCalls > 0 ? Math.round((totalDuration._sum.duration || 0) / answeredCalls) : 0,
       },
+    };
+  }
+
+  async updateMultipleCalls(callIds: number[], data: Partial<UpdateCallDto>) {
+    const updated = await this.prisma.call.updateMany({
+      where: {
+        id: { in: callIds },
+      },
+      data: {
+        ...(data.status && { status: data.status }),
+        ...(data.duration !== undefined && { duration: data.duration }),
+        ...(data.recordUrl && { recordUrl: data.recordUrl }),
+      },
+    });
+
+    this.auditLogger.log({
+      action: 'CALLS_BATCH_UPDATED',
+      resourceType: 'call',
+      metadata: { callIds, count: updated.count, changes: data },
+    });
+
+    return {
+      success: true,
+      message: `Updated ${updated.count} calls`,
+      data: { count: updated.count },
     };
   }
 

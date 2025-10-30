@@ -101,32 +101,7 @@ export class WebhookService {
 
     // Создаем или находим номер телефона АТС
     const phoneAts = to?.number || to;
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: phoneAts },
-    });
-
-    if (!phone) {
-      try {
-        phone = await this.prisma.phone.create({
-          data: {
-            number: phoneAts,
-            rk: 'Неизвестно',
-            city: operator.city || 'Неизвестно',
-            avitoName: null,
-          },
-        });
-        this.logger.log(`Created new phone number: ${phoneAts}`);
-      } catch (error: any) {
-        if (error.code === 'P2002') {
-          // Номер уже создан параллельным запросом
-          phone = await this.prisma.phone.findUnique({
-            where: { number: phoneAts },
-          });
-        } else {
-          throw error;
-        }
-      }
-    }
+    const phone = await this.findOrCreatePhone(phoneAts, operator.city || 'Неизвестно');
 
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -185,31 +160,7 @@ export class WebhookService {
 
     // Создаем или находим номер телефона АТС
     const phoneAts = to?.number || to;
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: phoneAts },
-    });
-
-    if (!phone) {
-      try {
-        phone = await this.prisma.phone.create({
-          data: {
-            number: phoneAts,
-            rk: 'Неизвестно',
-            city: 'Неизвестно',
-            avitoName: null,
-          },
-        });
-        this.logger.log(`Created new phone number: ${phoneAts}`);
-      } catch (error: any) {
-        if (error.code === 'P2002') {
-          phone = await this.prisma.phone.findUnique({
-            where: { number: phoneAts },
-          });
-        } else {
-          throw error;
-        }
-      }
-    }
+    const phone = await this.findOrCreatePhone(phoneAts);
 
     // Ищем существующий звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -297,31 +248,7 @@ export class WebhookService {
     const operator = await this.findOperatorBySip(sipUsername);
 
     // Создаем или находим номер телефона АТС
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: to },
-    });
-
-    if (!phone) {
-      try {
-        phone = await this.prisma.phone.create({
-          data: {
-            number: to,
-            rk: 'Неизвестно',
-            city: operator?.city || 'Неизвестно',
-            avitoName: null,
-          },
-        });
-        this.logger.log(`Created new phone number: ${to}`);
-      } catch (error: any) {
-        if (error.code === 'P2002') {
-          phone = await this.prisma.phone.findUnique({
-            where: { number: to },
-          });
-        } else {
-          throw error;
-        }
-      }
-    }
+    const phone = await this.findOrCreatePhone(to, operator?.city || 'Неизвестно');
 
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -390,6 +317,19 @@ export class WebhookService {
     }
   }
 
+  private async findOrCreatePhone(phoneNumber: string, city: string = 'Неизвестно', rk: string = 'Неизвестно'): Promise<any> {
+    return this.prisma.phone.upsert({
+      where: { number: phoneNumber },
+      update: {},
+      create: {
+        number: phoneNumber,
+        rk,
+        city,
+        avitoName: null,
+      },
+    });
+  }
+
   async processMangoRecording(payload: any) {
     try {
       // Парсим данные
@@ -436,64 +376,21 @@ export class WebhookService {
 
       this.logger.log(`Found call ID: ${call.id} for entry_id: ${entry_id}`);
 
-      // Ждем 5 секунд (Mango обрабатывает файл)
-      this.logger.log('Waiting 5 seconds for Mango to process recording...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      // Скачиваем запись
-      if (this.mangoService.isConfigured()) {
+      // TODO: Implement proper job queue (Bull/Redis) for delayed processing
+      // For now, process asynchronously without blocking
+      setImmediate(async () => {
         try {
-          const buffer = await this.mangoService.downloadRecording(recording_id);
-          
-          // Загружаем в S3 если настроено
-          if (this.s3Service.isConfigured()) {
-            const filename = `${call.callId}_${Date.now()}.mp3`;
-            const s3Key = await this.s3Service.uploadRecording(filename, buffer);
-            
-            // Обновляем звонок
-            await this.prisma.call.update({
-              where: { id: call.id },
-              data: {
-                recordUrl: `s3://${s3Key}`,
-                recordingPath: s3Key,
-                recordingProcessedAt: new Date(),
-              },
-            });
-
-            this.logger.log(`Recording uploaded to S3: ${s3Key}`);
-
-            // Broadcast обновления
-            await this.realtimeService.broadcastCallUpdated(
-              { ...call, recordUrl: `s3://${s3Key}`, recordingPath: s3Key, recordingProcessedAt: new Date() },
-              ['operators'],
-            );
-
-            return {
-              success: true,
-              message: 'Recording processed and uploaded',
-              data: { callId: call.callId, s3Key },
-            };
-          } else {
-            this.logger.warn('S3 not configured - recording not uploaded');
-            return {
-              success: true,
-              message: 'Recording downloaded but S3 not configured',
-            };
-          }
+          await this.processRecordingDownload(call, recording_id);
         } catch (error) {
-          this.logger.error(`Error processing recording: ${error.message}`);
-          return {
-            success: false,
-            message: `Error processing recording: ${error.message}`,
-          };
+          this.logger.error(`Async recording processing failed: ${error.message}`);
         }
-      } else {
-        this.logger.warn('Mango API not configured - cannot download recording');
-        return {
-          success: false,
-          message: 'Mango API not configured',
-        };
-      }
+      });
+
+      return {
+        success: true,
+        message: 'Recording queued for processing',
+        data: { callId: call.callId },
+      };
     } catch (error) {
       this.logger.error(`Error in processMangoRecording: ${error.message}`, error.stack);
       return {
@@ -501,6 +398,46 @@ export class WebhookService {
         message: error.message,
       };
     }
+  }
+
+  private async processRecordingDownload(call: any, recording_id: string) {
+    // Ждем 5 секунд (Mango обрабатывает файл) но не блокируем event loop
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    if (!this.mangoService.isConfigured()) {
+      this.logger.warn('Mango API not configured - cannot download recording');
+      throw new Error('Mango API not configured');
+    }
+
+    // Скачиваем запись
+    const buffer = await this.mangoService.downloadRecording(recording_id);
+
+    // Загружаем в S3 если настроено
+    if (!this.s3Service.isConfigured()) {
+      this.logger.warn('S3 not configured - recording not uploaded');
+      return;
+    }
+
+    const filename = `${call.callId}_${Date.now()}.mp3`;
+    const s3Key = await this.s3Service.uploadRecording(filename, buffer);
+
+    // Обновляем звонок
+    await this.prisma.call.update({
+      where: { id: call.id },
+      data: {
+        recordUrl: `s3://${s3Key}`,
+        recordingPath: s3Key,
+        recordingProcessedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Recording uploaded to S3: ${s3Key}`);
+
+    // Broadcast обновления
+    await this.realtimeService.broadcastCallUpdated(
+      { ...call, recordUrl: `s3://${s3Key}`, recordingPath: s3Key, recordingProcessedAt: new Date() },
+      ['operators'],
+    );
   }
 }
 
