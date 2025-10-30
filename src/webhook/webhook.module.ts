@@ -5,11 +5,12 @@ import { CallsService } from '../calls/calls.service';
 import { MangoModule } from '../mango/mango.module';
 import { S3Module } from '../s3/s3.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { AuditLoggerService } from '../common/services/audit-logger.service';
 
 @Module({
   imports: [MangoModule, S3Module, RealtimeModule],
   controllers: [WebhookController],
-  providers: [WebhookService, CallsService],
+  providers: [WebhookService, CallsService, AuditLoggerService],
 })
 export class WebhookModule {}
 
