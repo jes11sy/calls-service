@@ -25,7 +25,7 @@ export class CallsController {
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get all calls' })
   async getCalls(@Query() query: GetCallsQueryDto, @Request() req: any) {
     return this.callsService.getCalls(query, req.user);
@@ -34,7 +34,7 @@ export class CallsController {
   @Get('stats')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.director)
+  @Roles(UserRole.ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get call statistics' })
   async getCallStats(@Query() query: any) {
     return this.callsService.getCallStats(query);
@@ -43,7 +43,7 @@ export class CallsController {
   @Get('order/:orderId')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director, UserRole.master)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR, UserRole.MASTER)
   @ApiOperation({ summary: 'Get calls by order ID (only calls with recordings)' })
   async getCallsByOrderId(@Param('orderId') orderId: string) {
     return this.callsService.getCallsByOrderId(+orderId);
@@ -52,7 +52,7 @@ export class CallsController {
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get call by ID' })
   async getCall(@Param('id') id: string) {
     return this.callsService.getCall(+id);
@@ -61,7 +61,7 @@ export class CallsController {
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR)
   @ApiOperation({ summary: 'Create call manually' })
   async createCall(@Body() dto: CreateCallDto, @Request() req: any) {
     return this.callsService.createCall(dto, req.user);
@@ -70,7 +70,7 @@ export class CallsController {
   @Put(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update call' })
   async updateCall(@Param('id') id: string, @Body() dto: UpdateCallDto) {
     return this.callsService.updateCall(+id, dto);
@@ -79,7 +79,7 @@ export class CallsController {
   @Get('by-phone/:phone')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get calls by phone number' })
   async getCallsByPhone(@Param('phone') phone: string) {
     return this.callsService.getCallsByPhone(phone);

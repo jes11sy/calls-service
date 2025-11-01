@@ -12,7 +12,7 @@ export class RecordingsController {
   @Get('call/:id/download')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.admin, UserRole.operator, UserRole.director, UserRole.master)
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR, UserRole.MASTER)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get signed URL for call recording download' })
   async getRecordingDownloadUrl(@Param('id') id: string) {
