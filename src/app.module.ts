@@ -9,6 +9,7 @@ import { MangoModule } from './mango/mango.module';
 import { S3Module } from './s3/s3.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RecordingsModule } from './recordings/recordings.module';
+import { PhonesModule } from './phones/phones.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RecordingsModule } from './recordings/recordings.module';
     S3Module,
     RealtimeModule,
     RecordingsModule,
+    PhonesModule,
   ],
 })
 export class AppModule {}
