@@ -41,6 +41,7 @@ export class RealtimeService {
             status: call.status,
             operatorId: call.operatorId,
             duration: call.duration,
+            operator: call.operator, // Вложенный объект оператора
           },
           rooms,
         }

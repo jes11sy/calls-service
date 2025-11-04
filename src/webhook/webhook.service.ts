@@ -270,9 +270,23 @@ export class WebhookService {
       return { success: true, message: 'Operator not found' };
     }
 
-    // Создаем или находим номер телефона АТС
+    // Определяем номер АТС
     const phoneAts = to?.line_number || to?.number || to;
-    const phone = await this.findOrCreatePhone(phoneAts, operator.city || 'Неизвестно');
+    const phoneClient = from?.number || from;
+
+    // Ищем номер телефона АТС
+    let phone = await this.prisma.phone.findUnique({
+      where: { number: phoneAts },
+    });
+
+    // Определяем город и РК из phone или operator
+    const city = phone?.city || operator.city || 'Не указан';
+    const rk = phone?.rk || 'MANGO';
+
+    // Создаем phone если не существует
+    if (!phone) {
+      phone = await this.findOrCreatePhone(phoneAts, city, rk);
+    }
 
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -294,15 +308,23 @@ export class WebhookService {
       // Создаем новый звонок
       call = await this.prisma.call.create({
         data: {
-          rk: 'MANGO',
-          city: operator.city || '',
+          rk,
+          city,
           callId: call_id,
-          phoneClient: from?.number || from,
+          phoneClient,
           phoneAts: phoneAts,
           dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
           mangoData: payload,
+        },
+        include: {
+          operator: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       });
 
