@@ -82,16 +82,23 @@ export class WebhookService {
         return { success: true, message: 'Entry ID missing' };
       }
 
-      // Определяем статус звонка
+      // Определяем статус звонка и длительность
       let status = 'missed';
       let duration = 0;
       
-      if (talk_time && end_time) {
-        duration = end_time - talk_time;
+      // talk_time и end_time - это Unix timestamps в секундах
+      if (talk_time && end_time && talk_time > 0) {
+        duration = end_time - talk_time; // уже в секундах
+        status = 'answered';
+      } else if (entry_result === 1) {
+        // entry_result = 1 означает успешный звонок
         status = 'answered';
       } else if (entry_result === 0) {
         status = 'missed';
-      } else if (disconnect_reason === 1120) {
+      }
+      
+      // Если разговор был, но нет talk_time (редкий случай)
+      if (duration > 0) {
         status = 'answered';
       }
 
