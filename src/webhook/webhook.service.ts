@@ -140,6 +140,8 @@ export class WebhookService {
       });
 
       let call;
+      let isNewCall = false;
+      
       if (existingCall) {
         // Обновляем существующий звонок
         call = await this.prisma.call.update({
@@ -161,7 +163,10 @@ export class WebhookService {
             },
           },
         });
+        
+        this.logger.log(`Updated existing call: ${existingCall.id}`);
       } else {
+        isNewCall = true;
         // Создаем новый звонок
         call = await this.prisma.call.create({
           data: {
@@ -185,12 +190,20 @@ export class WebhookService {
             },
           },
         });
+      }
 
+      // Broadcast в зависимости от того, новый звонок или обновленный
+      if (isNewCall) {
         // Broadcast нового звонка
         await this.realtimeService.broadcastNewCall(call, [
           'operators',
           `operator:${operator.id}`,
         ]);
+        this.logger.log(`Broadcasted new call: ${call.id}`);
+      } else {
+        // Broadcast обновления существующего звонка
+        await this.realtimeService.broadcastCallUpdated(call, ['operators']);
+        this.logger.log(`Broadcasted call update: ${call.id}`);
       }
 
       // Broadcast обновления о завершении звонка
