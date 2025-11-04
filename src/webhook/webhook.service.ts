@@ -75,7 +75,7 @@ export class WebhookService {
         where: { callId: call_id },
         data: {
           phoneClient: from?.number || from,
-          phoneAts: to?.number || to,
+          phoneAts: to?.line_number || to?.number || to,
         },
       });
     }
@@ -100,7 +100,7 @@ export class WebhookService {
     }
 
     // Создаем или находим номер телефона АТС
-    const phoneAts = to?.number || to;
+    const phoneAts = to?.line_number || to?.number || to;
     const phone = await this.findOrCreatePhone(phoneAts, operator.city || 'Неизвестно');
 
     // Проверяем, существует ли звонок
@@ -159,7 +159,7 @@ export class WebhookService {
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
 
     // Создаем или находим номер телефона АТС
-    const phoneAts = to?.number || to;
+    const phoneAts = to?.line_number || to?.number || to;
     const phone = await this.findOrCreatePhone(phoneAts);
 
     // Ищем существующий звонок
@@ -248,7 +248,9 @@ export class WebhookService {
     const operator = await this.findOperatorBySip(sipUsername);
 
     // Создаем или находим номер телефона АТС
-    const phone = await this.findOrCreatePhone(to, operator?.city || 'Неизвестно');
+    const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
+    const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
+    const phone = await this.findOrCreatePhone(phoneAts, operator?.city || 'Неизвестно');
 
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -261,7 +263,7 @@ export class WebhookService {
         data: {
           status,
           duration,
-          phoneAts: to,
+          phoneAts,
           dateCreate: new Date(create_time || timestamp * 1000),
           mangoData: payload,
         },
@@ -272,8 +274,8 @@ export class WebhookService {
           rk: 'MANGO',
           city: operator?.city || '',
           callId: call_id,
-          phoneClient: from,
-          phoneAts: to,
+          phoneClient,
+          phoneAts,
           dateCreate: new Date(create_time || timestamp * 1000),
           duration,
           status,
@@ -318,6 +320,12 @@ export class WebhookService {
   }
 
   private async findOrCreatePhone(phoneNumber: string, city: string = 'Неизвестно', rk: string = 'Неизвестно'): Promise<any> {
+    // Если номер не указан, возвращаем null
+    if (!phoneNumber || phoneNumber === 'undefined') {
+      this.logger.warn('Phone number is undefined, skipping phone upsert');
+      return null;
+    }
+
     return this.prisma.phone.upsert({
       where: { number: phoneNumber },
       update: {},
