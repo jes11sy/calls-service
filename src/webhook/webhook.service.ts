@@ -59,6 +59,141 @@ export class WebhookService {
     }
   }
 
+  async processMangoSummary(summaryData: any) {
+    try {
+      this.logger.log(`Processing Mango summary: ${JSON.stringify(summaryData)}`);
+
+      const {
+        entry_id,
+        call_direction,
+        from,
+        to,
+        line_number,
+        create_time,
+        forward_time,
+        talk_time,
+        end_time,
+        entry_result,
+        disconnect_reason,
+      } = summaryData;
+
+      if (!entry_id) {
+        this.logger.warn('Entry ID is missing in summary event');
+        return { success: true, message: 'Entry ID missing' };
+      }
+
+      // Определяем статус звонка
+      let status = 'missed';
+      let duration = 0;
+      
+      if (talk_time && end_time) {
+        duration = end_time - talk_time;
+        status = 'answered';
+      } else if (entry_result === 0) {
+        status = 'missed';
+      } else if (disconnect_reason === 1120) {
+        status = 'answered';
+      }
+
+      // Извлекаем SIP username из to.number
+      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+      const operator = await this.findOperatorBySip(sipUsername);
+
+      if (!operator) {
+        this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
+        return { success: true, message: 'Operator not found' };
+      }
+
+      // Определяем номер АТС
+      const phoneAts = line_number || to?.line_number || to?.number || to;
+      const phoneClient = from?.number || from;
+
+      // Создаем или находим номер телефона АТС
+      const phone = await this.findOrCreatePhone(phoneAts, operator.city || 'Неизвестно');
+
+      // Проверяем, существует ли звонок по entry_id
+      const existingCall = await this.prisma.call.findFirst({
+        where: {
+          OR: [
+            { callId: entry_id },
+            // Можем также искать по entry_id в mangoData
+          ],
+        },
+      });
+
+      let call;
+      if (existingCall) {
+        // Обновляем существующий звонок
+        call = await this.prisma.call.update({
+          where: { id: existingCall.id },
+          data: {
+            status,
+            duration,
+            phoneClient,
+            phoneAts,
+            dateCreate: new Date(create_time * 1000),
+            mangoData: summaryData,
+          },
+          include: {
+            operator: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
+      } else {
+        // Создаем новый звонок
+        call = await this.prisma.call.create({
+          data: {
+            rk: 'MANGO',
+            city: operator.city || '',
+            callId: entry_id,
+            phoneClient,
+            phoneAts,
+            dateCreate: new Date(create_time * 1000),
+            status,
+            duration,
+            operatorId: operator.id,
+            mangoData: summaryData,
+          },
+          include: {
+            operator: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
+
+        // Broadcast нового звонка
+        await this.realtimeService.broadcastNewCall(call, [
+          'operators',
+          `operator:${operator.id}`,
+        ]);
+      }
+
+      // Broadcast обновления о завершении звонка
+      await this.realtimeService.broadcastCallEnded(call, ['operators']);
+
+      this.logger.log(`Summary processed: entry_id=${entry_id}, status=${status}, duration=${duration}`);
+
+      return {
+        success: true,
+        message: 'Summary processed',
+        data: { callId: entry_id, status, duration },
+      };
+    } catch (error) {
+      this.logger.error(`Error processing Mango summary: ${error.message}`, error.stack);
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
   private async handleCallAppeared(payload: any) {
     const { call_id, from, to, create_time, timestamp } = payload;
 
@@ -88,6 +223,11 @@ export class WebhookService {
 
   private async handleCallConnected(payload: any) {
     const { call_id, from, to, answer_time, create_time, timestamp } = payload;
+
+    if (!call_id) {
+      this.logger.warn('Call ID is missing in Connected event');
+      return { success: true, message: 'Call ID missing' };
+    }
 
     this.logger.log(`Call connected: ${call_id}`);
 
@@ -151,6 +291,11 @@ export class WebhookService {
 
   private async handleCallDisconnected(payload: any) {
     const { call_id, from, to, entry_id, disconnect_reason, create_time, answer_time, end_time, timestamp } = payload;
+
+    if (!call_id) {
+      this.logger.warn('Call ID is missing in Disconnected event');
+      return { success: true, message: 'Call ID missing' };
+    }
 
     this.logger.log(`Call disconnected: ${call_id}, reason: ${disconnect_reason}`);
 
@@ -251,6 +396,12 @@ export class WebhookService {
     const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
     const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
     const phone = await this.findOrCreatePhone(phoneAts, operator?.city || 'Неизвестно');
+
+    // Если нет call_id, не можем обработать звонок
+    if (!call_id) {
+      this.logger.warn('Call ID is missing in legacy format, skipping');
+      return { success: true, message: 'Call ID missing' };
+    }
 
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },

@@ -80,8 +80,15 @@ export class WebhookController {
     this.logger.log(`Received Mango summary event: ${JSON.stringify(payload)}`);
     
     try {
-      // Для summary пока просто логируем и возвращаем успех
-      return { success: true, message: 'Summary received' };
+      // Парсим JSON из поля json
+      let summaryData = payload;
+      if (payload.json && typeof payload.json === 'string') {
+        summaryData = JSON.parse(payload.json);
+      }
+      
+      // Обрабатываем summary как завершенный звонок
+      const result = await this.webhookService.processMangoSummary(summaryData);
+      return result;
     } catch (error) {
       this.logger.error(`Error processing Mango summary: ${error.message}`, error.stack);
       return { success: false, message: error.message };
