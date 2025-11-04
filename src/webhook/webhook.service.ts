@@ -129,13 +129,25 @@ export class WebhookService {
         phone = await this.findOrCreatePhone(phoneAts, city, rk);
       }
 
-      // Проверяем, существует ли звонок по entry_id
+      // Проверяем, существует ли звонок по entry_id или по комбинации параметров
       const existingCall = await this.prisma.call.findFirst({
         where: {
           OR: [
             { callId: entry_id },
-            // Можем также искать по entry_id в mangoData
+            // Ищем по номеру клиента, АТС и оператору (для случая когда звонок создан при Connected)
+            {
+              phoneClient,
+              phoneAts,
+              operatorId: operator.id,
+              dateCreate: {
+                gte: new Date((create_time - 5) * 1000), // ±5 секунд
+                lte: new Date((create_time + 5) * 1000),
+              },
+            },
           ],
+        },
+        orderBy: {
+          dateCreate: 'desc',
         },
       });
 
@@ -147,6 +159,7 @@ export class WebhookService {
         call = await this.prisma.call.update({
           where: { id: existingCall.id },
           data: {
+            callId: entry_id, // Обновляем callId на entry_id из Summary
             status,
             duration,
             phoneClient,
@@ -164,7 +177,7 @@ export class WebhookService {
           },
         });
         
-        this.logger.log(`Updated existing call: ${existingCall.id}`);
+        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}`);
       } else {
         isNewCall = true;
         // Создаем новый звонок
