@@ -40,6 +40,7 @@ export class RealtimeService {
             dateCreate: call.dateCreate,
             status: call.status,
             operatorId: call.operatorId,
+            duration: call.duration,
           },
           rooms,
         }

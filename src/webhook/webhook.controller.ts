@@ -49,8 +49,14 @@ export class WebhookController {
     this.logger.log(`Received Mango call event: ${JSON.stringify(payload)}`);
     
     try {
+      // Парсим JSON из поля json если он есть
+      let eventData = payload;
+      if (payload.json && typeof payload.json === 'string') {
+        eventData = JSON.parse(payload.json);
+      }
+      
       // Используем тот же обработчик что и для /mango
-      const result = await this.webhookService.processMangoWebhook(payload);
+      const result = await this.webhookService.processMangoWebhook(eventData);
       return result;
     } catch (error) {
       this.logger.error(`Error processing Mango call event: ${error.message}`, error.stack);
