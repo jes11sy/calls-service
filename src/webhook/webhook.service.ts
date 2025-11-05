@@ -164,6 +164,7 @@ export class WebhookService {
             duration,
             phoneClient,
             phoneAts,
+            avitoName: phone?.avitoName || null, // Берем avitoName из phone
             dateCreate: new Date(create_time * 1000),
             mangoData: summaryData,
           },
@@ -177,7 +178,7 @@ export class WebhookService {
           },
         });
         
-        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}`);
+        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, avitoName: ${phone?.avitoName || 'null'}`);
       } else {
         isNewCall = true;
         // Создаем новый звонок
@@ -188,6 +189,7 @@ export class WebhookService {
             callId: entry_id,
             phoneClient,
             phoneAts,
+            avitoName: phone?.avitoName || null, // Берем avitoName из phone
             dateCreate: new Date(create_time * 1000),
             status,
             duration,
@@ -249,12 +251,19 @@ export class WebhookService {
     });
 
     if (existingCall) {
+      const phoneAts = to?.line_number || to?.number || to;
+      // Ищем phone для получения avitoName
+      const phone = await this.prisma.phone.findUnique({
+        where: { number: phoneAts },
+      });
+      
       // Обновляем данные
       await this.prisma.call.update({
         where: { callId: call_id },
         data: {
           phoneClient: from?.number || from,
-          phoneAts: to?.line_number || to?.number || to,
+          phoneAts: phoneAts,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
         },
       });
     }
@@ -314,6 +323,7 @@ export class WebhookService {
         data: {
           status: 'answered',
           operatorId: operator.id,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           mangoData: payload,
         },
       });
@@ -326,6 +336,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient,
           phoneAts: phoneAts,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
@@ -386,6 +397,7 @@ export class WebhookService {
         data: {
           status,
           duration,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           mangoData: payload,
         },
         include: {
@@ -408,6 +420,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient: from?.number || from,
           phoneAts: phoneAts,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           dateCreate: new Date(create_time || timestamp * 1000),
           status,
           duration,
@@ -481,6 +494,7 @@ export class WebhookService {
           status,
           duration,
           phoneAts,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           dateCreate: new Date(create_time || timestamp * 1000),
           mangoData: payload,
         },
@@ -493,6 +507,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient,
           phoneAts,
+          avitoName: phone?.avitoName || null, // Берем avitoName из phone
           dateCreate: new Date(create_time || timestamp * 1000),
           duration,
           status,
