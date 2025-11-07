@@ -82,6 +82,12 @@ export class WebhookService {
         return { success: true, message: 'Entry ID missing' };
       }
 
+      // Игнорируем исходящие звонки (call_direction = 2)
+      if (call_direction === 2) {
+        this.logger.log(`Ignoring outbound call: ${entry_id}`);
+        return { success: true, message: 'Outbound call ignored' };
+      }
+
       // Определяем статус звонка и длительность
       let status = 'missed';
       let duration = 0;
