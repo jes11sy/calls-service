@@ -517,7 +517,7 @@ export class WebhookService {
     } else {
       call = await this.prisma.call.create({
         data: {
-          rk: 'MANGO',
+          rk: phone?.rk || 'MANGO',
           city: operator?.city || '',
           callId: call_id,
           phoneClient,
