@@ -124,9 +124,9 @@ export class WebhookService {
       const city = phone?.city || operator.city || 'Неизвестно';
       const rk = phone?.rk || 'MANGO';
 
-      // Создаем phone если не существует
+      // Пытаемся найти phone если не существует (НЕ создаем автоматически)
       if (!phone) {
-        phone = await this.findOrCreatePhone(phoneAts, city, rk);
+        phone = await this.findPhone(phoneAts);
       }
 
       // Проверяем, существует ли звонок по entry_id или по комбинации параметров
@@ -305,9 +305,9 @@ export class WebhookService {
     const city = phone?.city || operator.city || 'Не указан';
     const rk = phone?.rk || 'MANGO';
 
-    // Создаем phone если не существует
+    // Пытаемся найти phone если не существует (НЕ создаем автоматически)
     if (!phone) {
-      phone = await this.findOrCreatePhone(phoneAts, city, rk);
+      phone = await this.findPhone(phoneAts);
     }
 
     // Проверяем, существует ли звонок
@@ -380,9 +380,9 @@ export class WebhookService {
     const duration = this.mangoService.calculateDuration(payload);
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
 
-    // Создаем или находим номер телефона АТС
+    // Ищем номер телефона АТС (НЕ создаем автоматически)
     const phoneAts = to?.line_number || to?.number || to;
-    const phone = await this.findOrCreatePhone(phoneAts);
+    const phone = await this.findPhone(phoneAts);
 
     // Ищем существующий звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -471,10 +471,10 @@ export class WebhookService {
     const sipUsername = this.mangoService.extractSipUsername(to);
     const operator = await this.findOperatorBySip(sipUsername);
 
-    // Создаем или находим номер телефона АТС
+    // Ищем номер телефона АТС (НЕ создаем автоматически)
     const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
     const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
-    const phone = await this.findOrCreatePhone(phoneAts, operator?.city || 'Неизвестно');
+    const phone = await this.findPhone(phoneAts);
 
     // Если нет call_id, не можем обработать звонок
     if (!call_id) {
@@ -551,23 +551,24 @@ export class WebhookService {
     }
   }
 
-  private async findOrCreatePhone(phoneNumber: string, city: string = 'Неизвестно', rk: string = 'Неизвестно'): Promise<any> {
+  private async findPhone(phoneNumber: string): Promise<any> {
     // Если номер не указан, возвращаем null
     if (!phoneNumber || phoneNumber === 'undefined') {
-      this.logger.warn('Phone number is undefined, skipping phone upsert');
+      this.logger.warn('Phone number is undefined, skipping phone lookup');
       return null;
     }
 
-    return this.prisma.phone.upsert({
+    // Только ищем номер в базе, НЕ создаем автоматически
+    const phone = await this.prisma.phone.findUnique({
       where: { number: phoneNumber },
-      update: {},
-      create: {
-        number: phoneNumber,
-        rk,
-        city,
-        avitoName: null,
-      },
     });
+
+    if (!phone) {
+      this.logger.warn(`⚠️ Phone number ${phoneNumber} not found in database. Call will be saved without phone relation. Please add this number manually if needed.`);
+      return null;
+    }
+
+    return phone;
   }
 
   async processMangoRecording(payload: any) {
