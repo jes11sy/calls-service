@@ -124,24 +124,33 @@ export class WebhookService {
       const city = phone?.city || operator.city || 'Неизвестно';
       const rk = phone?.rk || 'MANGO';
 
-      // Пытаемся найти phone если не существует (НЕ создаем автоматически)
+      // Создаем phone если не существует
       if (!phone) {
-        phone = await this.findPhone(phoneAts);
+        phone = await this.findOrCreatePhone(phoneAts, city, rk);
       }
 
-      // Проверяем, существует ли звонок по entry_id или по комбинации параметров
+      // Проверяем, существует ли звонок по entry_id в JSON mangoData
+      // (звонок мог быть создан в Connected с call_id, а не entry_id)
       const existingCall = await this.prisma.call.findFirst({
         where: {
           OR: [
+            // 1. Ищем по callId = entry_id (если уже обновлен)
             { callId: entry_id },
-            // Ищем по номеру клиента, АТС и оператору (для случая когда звонок создан при Connected)
+            // 2. Ищем по entry_id в JSON поле mangoData
+            {
+              mangoData: {
+                path: ['entry_id'],
+                equals: entry_id,
+              },
+            },
+            // 3. Ищем по номеру клиента, АТС и оператору с временным окном
             {
               phoneClient,
               phoneAts,
               operatorId: operator.id,
               dateCreate: {
-                gte: new Date((create_time - 5) * 1000), // ±5 секунд
-                lte: new Date((create_time + 5) * 1000),
+                gte: new Date((create_time - 10) * 1000), // ±10 секунд
+                lte: new Date((create_time + 10) * 1000),
               },
             },
           ],
@@ -305,9 +314,9 @@ export class WebhookService {
     const city = phone?.city || operator.city || 'Не указан';
     const rk = phone?.rk || 'MANGO';
 
-    // Пытаемся найти phone если не существует (НЕ создаем автоматически)
+    // Создаем phone если не существует
     if (!phone) {
-      phone = await this.findPhone(phoneAts);
+      phone = await this.findOrCreatePhone(phoneAts, city, rk);
     }
 
     // Проверяем, существует ли звонок
@@ -380,9 +389,9 @@ export class WebhookService {
     const duration = this.mangoService.calculateDuration(payload);
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
 
-    // Ищем номер телефона АТС (НЕ создаем автоматически)
+    // Создаем или находим номер телефона АТС
     const phoneAts = to?.line_number || to?.number || to;
-    const phone = await this.findPhone(phoneAts);
+    const phone = await this.findOrCreatePhone(phoneAts);
 
     // Ищем существующий звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -471,10 +480,10 @@ export class WebhookService {
     const sipUsername = this.mangoService.extractSipUsername(to);
     const operator = await this.findOperatorBySip(sipUsername);
 
-    // Ищем номер телефона АТС (НЕ создаем автоматически)
+    // Создаем или находим номер телефона АТС
     const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
     const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
-    const phone = await this.findPhone(phoneAts);
+    const phone = await this.findOrCreatePhone(phoneAts, operator?.city || 'Неизвестно');
 
     // Если нет call_id, не можем обработать звонок
     if (!call_id) {
@@ -551,24 +560,23 @@ export class WebhookService {
     }
   }
 
-  private async findPhone(phoneNumber: string): Promise<any> {
+  private async findOrCreatePhone(phoneNumber: string, city: string = 'Неизвестно', rk: string = 'Неизвестно'): Promise<any> {
     // Если номер не указан, возвращаем null
     if (!phoneNumber || phoneNumber === 'undefined') {
-      this.logger.warn('Phone number is undefined, skipping phone lookup');
+      this.logger.warn('Phone number is undefined, skipping phone upsert');
       return null;
     }
 
-    // Только ищем номер в базе, НЕ создаем автоматически
-    const phone = await this.prisma.phone.findUnique({
+    return this.prisma.phone.upsert({
       where: { number: phoneNumber },
+      update: {},
+      create: {
+        number: phoneNumber,
+        rk,
+        city,
+        avitoName: null,
+      },
     });
-
-    if (!phone) {
-      this.logger.warn(`⚠️ Phone number ${phoneNumber} not found in database. Call will be saved without phone relation. Please add this number manually if needed.`);
-      return null;
-    }
-
-    return phone;
   }
 
   async processMangoRecording(payload: any) {
