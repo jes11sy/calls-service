@@ -581,49 +581,53 @@ export class WebhookService {
 
   async processMangoRecording(payload: any) {
     try {
-      // Парсим данные
-      let recordingData = payload;
-      if (payload.json) {
-        recordingData = JSON.parse(payload.json);
-      }
+      const { entry_id, call_id, recording_id, recording_state } = payload;
 
-      const { entry_id, recording_id, recording_state } = recordingData;
+      this.logger.log(`Recording webhook: entry_id=${entry_id}, call_id=${call_id}, recording_id=${recording_id}, state=${recording_state}`);
 
-      this.logger.log(`Recording webhook: entry_id=${entry_id}, recording_id=${recording_id}, state=${recording_state}`);
-
-      // Обрабатываем только завершенные записи
-      if (recording_state !== 'Completed') {
+      // Игнорируем Started события
+      if (recording_state === 'Started') {
         return {
           success: true,
-          message: `Recording not completed yet: ${recording_state}`,
+          message: 'Recording started - waiting for completion',
         };
       }
 
-      if (!entry_id || !recording_id) {
-        return { success: false, message: 'Missing required fields' };
+      if (!recording_id) {
+        return { success: false, message: 'Missing recording_id' };
       }
 
-      // Находим звонок по entry_id в mangoData
-      const call = await this.prisma.call.findFirst({
-        where: {
-          OR: [
-            // Поиск по entry_id в JSON поле (если используется)
-            { callId: { contains: entry_id } },
-            // Или если call_id совпадает
-            { callId: entry_id },
-          ],
-        },
-      });
+      // Находим звонок:
+      // 1. Если есть call_id (событие "Completed") - ищем по call_id
+      // 2. Если нет call_id (событие "record/added") - ищем по entry_id в mangoData
+      let call;
+      
+      if (call_id) {
+        // Событие "Completed" - есть call_id
+        call = await this.prisma.call.findFirst({
+          where: { callId: call_id },
+        });
+      } else if (entry_id) {
+        // Событие "record/added" - только entry_id
+        call = await this.prisma.call.findFirst({
+          where: {
+            mangoData: {
+              path: ['entry_id'],
+              equals: entry_id,
+            },
+          },
+        });
+      }
 
       if (!call) {
-        this.logger.warn(`Call not found for entry_id: ${entry_id}`);
+        this.logger.warn(`Call not found for call_id=${call_id}, entry_id=${entry_id}`);
         return {
           success: false,
           message: 'Call not found',
         };
       }
 
-      this.logger.log(`Found call ID: ${call.id} for entry_id: ${entry_id}`);
+      this.logger.log(`Found call ID: ${call.id} for recording_id: ${recording_id}`);
 
       // TODO: Implement proper job queue (Bull/Redis) for delayed processing
       // For now, process asynchronously without blocking
