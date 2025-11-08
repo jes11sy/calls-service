@@ -260,6 +260,12 @@ export class WebhookService {
 
     this.logger.log(`Call appeared: ${call_id}`);
 
+    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
+    if (this.isOutboundCall(from, to)) {
+      this.logger.log(`Ignoring outbound call: ${call_id}`);
+      return { success: true, message: 'Outbound call ignored' };
+    }
+
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
@@ -298,6 +304,12 @@ export class WebhookService {
     }
 
     this.logger.log(`Call connected: ${call_id}`);
+
+    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
+    if (this.isOutboundCall(from, to)) {
+      this.logger.log(`Ignoring outbound call: ${call_id}`);
+      return { success: true, message: 'Outbound call ignored' };
+    }
 
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
     const operator = await this.findOperatorBySip(sipUsername);
@@ -391,6 +403,12 @@ export class WebhookService {
 
     this.logger.log(`Call disconnected: ${call_id}, reason: ${disconnect_reason}`);
 
+    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
+    if (this.isOutboundCall(from, to)) {
+      this.logger.log(`Ignoring outbound call: ${call_id}`);
+      return { success: true, message: 'Outbound call ignored' };
+    }
+
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
@@ -480,6 +498,12 @@ export class WebhookService {
       answer_time,
       end_time,
     } = payload;
+
+    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
+    if (this.isOutboundCall(from, to)) {
+      this.logger.log(`Ignoring outbound call (legacy): ${call_id || 'unknown'}`);
+      return { success: true, message: 'Outbound call ignored' };
+    }
 
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
@@ -583,6 +607,36 @@ export class WebhookService {
         avitoName: null,
       },
     });
+  }
+
+  /**
+   * Определяет, является ли звонок исходящим (от сотрудника)
+   * Исходящий звонок: from содержит SIP-адрес сотрудника
+   * Входящий звонок: to содержит SIP-адрес сотрудника
+   */
+  private isOutboundCall(from: any, to: any): boolean {
+    const fromNumber = typeof from === 'object' ? (from?.number || from?.extension || '') : (from || '');
+    const toNumber = typeof to === 'object' ? (to?.number || to?.extension || '') : (to || '');
+
+    // Если from содержит "sip:" - это сотрудник звонит клиенту (исходящий)
+    if (fromNumber && fromNumber.toString().includes('sip:')) {
+      return true;
+    }
+
+    // Если to содержит "sip:" - это клиент звонит сотруднику (входящий)
+    if (toNumber && toNumber.toString().includes('sip:')) {
+      return false;
+    }
+
+    // Дополнительная проверка: если from - это короткий номер (внутренний номер сотрудника)
+    const fromStr = fromNumber.toString().replace(/\D/g, '');
+    if (fromStr.length > 0 && fromStr.length <= 4) {
+      // Короткий номер (например, 101, 102) - это сотрудник
+      return true;
+    }
+
+    // По умолчанию считаем входящим
+    return false;
   }
 
   async processMangoRecording(payload: any) {
