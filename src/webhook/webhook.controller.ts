@@ -71,7 +71,13 @@ export class WebhookController {
     this.logger.log(`Received Mango recording event: ${JSON.stringify(payload)}`);
     
     try {
-      const result = await this.webhookService.processMangoRecording(payload);
+      // Парсим JSON из поля json если он есть
+      let recordData = payload;
+      if (payload.json && typeof payload.json === 'string') {
+        recordData = JSON.parse(payload.json);
+      }
+      
+      const result = await this.webhookService.processMangoRecording(recordData);
       return result;
     } catch (error) {
       this.logger.error(`Error processing Mango recording event: ${error.message}`, error.stack);
@@ -108,7 +114,13 @@ export class WebhookController {
     this.logger.log(`Received Mango record added event: ${JSON.stringify(payload)}`);
     
     try {
-      const result = await this.webhookService.processMangoRecording(payload);
+      // Парсим JSON из поля json если он есть
+      let recordData = payload;
+      if (payload.json && typeof payload.json === 'string') {
+        recordData = JSON.parse(payload.json);
+      }
+      
+      const result = await this.webhookService.processMangoRecording(recordData);
       return result;
     } catch (error) {
       this.logger.error(`Error processing Mango record added: ${error.message}`, error.stack);
