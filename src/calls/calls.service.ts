@@ -491,10 +491,15 @@ export class CallsService {
       // 3. Инициируем callback через Mango Office
       const commandId = `callback_${dto.orderId}_${Date.now()}`;
       
+      // Форматируем номера для Mango (добавляем + если нет)
+      const formattedClientPhone = order.phone.startsWith('+') ? order.phone : `+${order.phone}`;
+      const formattedMasterPhone = dto.masterPhone.startsWith('+') ? dto.masterPhone : `+${dto.masterPhone}`;
+      const formattedPhoneAts = phoneAts.startsWith('+') ? phoneAts : `+${phoneAts}`;
+      
       const mangoResult = await this.mangoService.initiateCallback({
-        from: phoneAts,                  // Номер АТС (отобразится у клиента)
-        to_number: order.phone,          // Номер клиента
-        sip_id: dto.masterPhone,         // Номер мастера
+        from: formattedPhoneAts,         // Номер АТС (отобразится у клиента)
+        to_number: formattedClientPhone, // Номер клиента
+        sip_id: formattedMasterPhone,    // Номер мастера
         command_id: commandId,
       });
 
@@ -521,11 +526,12 @@ export class CallsService {
         message: 'Звонок инициирован. Ожидайте входящего звонка на ваш номер.',
         data: {
           commandId,
-          mangoCallId: mangoResult.call_id,
-          clientPhone: order.phone,
+          mangoResponse: mangoResult, // Полный ответ от Mango для отладки
+          clientPhone: formattedClientPhone,
           clientName: order.clientName,
-          phoneAts: phoneAts,
-          callSource: callSource, // Для отладки
+          phoneAts: formattedPhoneAts,
+          masterPhone: formattedMasterPhone,
+          callSource: callSource,
         },
       };
     } catch (error) {
