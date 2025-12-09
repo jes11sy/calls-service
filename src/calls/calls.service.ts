@@ -498,27 +498,12 @@ export class CallsService {
         command_id: commandId,
       });
 
-      // 4. Создаём запись о звонке в БД
-      const newCall = await this.prisma.call.create({
-        data: {
-          rk: order.rk || 'callback',
-          city: order.city || 'unknown',
-          phoneClient: order.phone,
-          phoneAts: phoneAts,
-          operatorId: user.id,
-          status: 'initiated',
-          callId: mangoResult.call_id || commandId,
-          dateCreate: new Date(),
-        },
-      });
-
-      // 5. Логируем успешную инициацию
+      // 4. Логируем успешную инициацию
       await this.auditLogger.log({
         action: 'INITIATE_CALLBACK',
         userId: user.id,
         userLogin: user.login,
         resourceType: 'callback',
-        resourceId: newCall.id,
         metadata: {
           userRole: user.role,
           orderId: dto.orderId,
@@ -527,6 +512,7 @@ export class CallsService {
           phoneAts: phoneAts,
           callSource: callSource, // Откуда взяли номер
           commandId,
+          mangoCallId: mangoResult.call_id,
         },
       });
 
@@ -535,7 +521,7 @@ export class CallsService {
         message: 'Звонок инициирован. Ожидайте входящего звонка на ваш номер.',
         data: {
           commandId,
-          callId: newCall.id,
+          mangoCallId: mangoResult.call_id,
           clientPhone: order.phone,
           clientName: order.clientName,
           phoneAts: phoneAts,
