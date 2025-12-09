@@ -162,9 +162,9 @@ export class MangoService {
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,
+          extension: SYSTEM_EXTENSION,  // Extension 10 (с переадресацией на мастера)
         },
-        to_number: cleanMasterPhone,
+        to_number: cleanClientPhone,    // КЛИЕНТ (с кем соединить после ответа мастера)
         ...(lineNumber && { line_number: lineNumber }),
       });
 
@@ -174,7 +174,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}", to_number: ${cleanMasterPhone}, line: ${lineNumber || 'not specified'}`);
+      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}" (will call master via forwarding) → Client: ${cleanClientPhone}, line: ${lineNumber || 'not specified'}`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
