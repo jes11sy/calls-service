@@ -149,15 +149,16 @@ export class MangoService {
       // Используем системный extension 10 (админ) для всех callback
       const SYSTEM_EXTENSION = '10';
       
-      // Используем /commands/call вместо /commands/callback
-      // Сначала звоним мастеру
+      // Mango Office callback: сначала звонит на extension, потом на to_number
+      // Но extension 10 - это SIP, который должен ответить
+      // Поэтому используем номер мастера в extension (попытка)
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,     // Системный SIP extension
-          number: params.from,              // Номер АТС (отобразится у мастера)
+          extension: params.master_phone,  // Пробуем номер мастера как extension
+          number: params.from,              // Номер АТС
         },
-        to_number: params.master_phone,    // Звоним мастеру
+        to_number: params.to_number,       // Номер клиента
         line_number: params.from,          // Линия для исходящего
       });
 
@@ -166,12 +167,11 @@ export class MangoService {
         .update(`${this.apiKey}${json}${this.apiSalt}`)
         .digest('hex');
 
-      this.logger.log(`📞 Initiating call to master: ${params.command_id}`);
-      this.logger.log(`   Extension: ${SYSTEM_EXTENSION} → Master: ${params.master_phone} (via ${params.from})`);
-      this.logger.log(`   Client to connect: ${params.to_number}`);
+      this.logger.log(`📞 Initiating callback: ${params.command_id}`);
+      this.logger.log(`   Extension (master phone): ${params.master_phone} → Client: ${params.to_number} (via ${params.from})`);
 
       const response = await axios.post(
-        `${this.apiUrl}/commands/call`,
+        `${this.apiUrl}/commands/callback`,
         new URLSearchParams({
           vpbx_api_key: this.apiKey,
           sign: sign,
@@ -185,11 +185,7 @@ export class MangoService {
         }
       );
 
-      this.logger.log(`✅ Call to master initiated: ${JSON.stringify(response.data)}`);
-      
-      // TODO: После ответа мастера нужно будет позвонить клиенту
-      // Это требует обработки webhook от Mango Office
-      
+      this.logger.log(`✅ Callback initiated: ${JSON.stringify(response.data)}`);
       return response.data;
     } catch (error) {
       this.logger.error(`❌ Failed to initiate callback: ${error.message}`);
