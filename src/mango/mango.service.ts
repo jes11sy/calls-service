@@ -165,7 +165,7 @@ export class MangoService {
         number: masterPhone       // "Позвонить мне на номер" — МАСТЕР
       },
       to_number: clientPhone,     // "Соединить с абонентом" — КЛИЕНТ
-      line_number: '79344771925'  // Исходящая линия АТС
+      line_number: '78452241274'  // Исходящая линия АТС
     };
 
     const json = JSON.stringify(requestBody);
