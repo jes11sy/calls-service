@@ -146,16 +146,16 @@ export class MangoService {
     }
 
     try {
-      // Последняя попытка: extension как число
-      const SYSTEM_EXTENSION = 10;  // Внутренний номер как ЧИСЛО
+      // Extension 10 существует и может инициировать звонки
+      const SYSTEM_EXTENSION = 10;
       
+      // НЕ указываем from.number - пусть Mango использует номер по умолчанию
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,  // Идентификатор сотрудника (число)
-          number: params.from,          // Номер АТС (с которого звоним)
+          extension: SYSTEM_EXTENSION,  // Идентификатор сотрудника
         },
-        to_number: params.master_phone, // Сначала звоним МАСТЕРУ
+        to_number: params.master_phone, // Звоним мастеру
         line_number: params.from,       // Линия (номер АТС)
       });
 
