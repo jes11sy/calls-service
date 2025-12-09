@@ -146,8 +146,8 @@ export class MangoService {
     }
 
     try {
-      // Используем extension 10 (существующий сотрудник)
-      const SYSTEM_EXTENSION = '10';
+      // Используем SIP ID существующего сотрудника
+      const SYSTEM_EXTENSION = 'jessy';  // SIP ID из jessy@vpbx400349703.mangosip.ru
       
       // Mango Office callback работает так:
       // 1. Звонит на extension 10 (SIP телефон админа)
