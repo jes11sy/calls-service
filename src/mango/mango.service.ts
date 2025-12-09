@@ -132,53 +132,47 @@ export class MangoService {
   }
 
   /**
-   * Инициирует callback звонок через Mango Office API
+   * Инициирует callback через Mango Office
    * 
-   * Алгоритм работы:
-   * 1. Mango звонит на номер мастера (from.number)
-   * 2. Когда мастер отвечает - Mango соединяет его с клиентом (to_number)
-   * 3. У клиента отображается номер АТС (line_number)
+   * Простая логика:
+   * 1. Mango звонит на extension 101
+   * 2. Extension 101 переадресует на мобильный (настроено в Mango)
+   * 3. После ответа — соединяет с клиентом
    */
   async initiateCallback(params: {
-    from: string;          // phone_ats - номер АТС (отобразится у клиента)
-    to_number: string;     // phone клиента
-    master_phone: string;  // номер мастера (кому звонить первому)
-    command_id: string;    // уникальный ID команды
+    from: string;
+    to_number: string;
+    master_phone: string;
+    command_id: string;
   }): Promise<any> {
     if (!this.isConfigured()) {
       throw new Error('Mango Office API не настроен');
     }
 
+    // Чистим номер клиента — только цифры, без +
+    const clientPhone = params.to_number.replace(/\D/g, '');
+    
+    // Минимальный JSON для callback
+    const requestBody = {
+      command_id: params.command_id,
+      from: {
+        extension: '101'
+      },
+      to_number: clientPhone
+    };
+
+    const json = JSON.stringify(requestBody);
+    
+    const sign = crypto
+      .createHash('sha256')
+      .update(`${this.apiKey}${json}${this.apiSalt}`)
+      .digest('hex');
+
+    this.logger.log(`📞 CALLBACK REQUEST:`);
+    this.logger.log(`   JSON: ${json}`);
+    this.logger.log(`   API Key: ${this.apiKey.substring(0, 8)}...`);
+
     try {
-      // Убираем + из номеров (Mango API требует номера без +)
-      const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
-      const cleanClientPhone = params.to_number.replace(/\+/g, '');
-      
-      // Системный extension для callback (должен быть настроен в Mango Office)
-      // Этот extension используется для авторизации callback запроса
-      const SYSTEM_EXTENSION = process.env.MANGO_CALLBACK_EXTENSION || '101';
-      
-      // Формируем JSON запрос
-      // from.extension - внутренний номер для авторизации в АТС
-      // from.number - внешний номер мастера, на который Mango позвонит ПЕРВЫМ
-      // to_number - номер клиента, с которым соединят после ответа мастера
-      const json = JSON.stringify({
-        command_id: params.command_id,
-        from: {
-          extension: SYSTEM_EXTENSION,  // Extension для авторизации
-          number: cleanMasterPhone,     // Номер МАСТЕРА - ему позвонят первому
-        },
-        to_number: cleanClientPhone,    // Номер КЛИЕНТА - с ним соединят после ответа мастера
-      });
-
-      const sign = crypto
-        .createHash('sha256')
-        .update(`${this.apiKey}${json}${this.apiSalt}`)
-        .digest('hex');
-
-      this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension: ${SYSTEM_EXTENSION}, Master: ${cleanMasterPhone} → Client: ${cleanClientPhone}`);
-
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
         new URLSearchParams({
@@ -187,19 +181,23 @@ export class MangoService {
           json: json,
         }),
         {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           timeout: 10000,
         }
       );
 
-      this.logger.log(`✅ Callback initiated: ${JSON.stringify(response.data)}`);
+      this.logger.log(`✅ RESPONSE: ${JSON.stringify(response.data)}`);
+      
+      // Проверяем результат
+      if (response.data.result && response.data.result !== 0) {
+        this.logger.error(`❌ Mango вернул ошибку: result=${response.data.result}`);
+      }
+      
       return response.data;
     } catch (error) {
-      this.logger.error(`❌ Failed to initiate callback: ${error.message}`);
-      if (error.response) {
-        this.logger.error(`   Response: ${JSON.stringify(error.response.data)}`);
+      this.logger.error(`❌ HTTP Error: ${error.message}`);
+      if (error.response?.data) {
+        this.logger.error(`   Response data: ${JSON.stringify(error.response.data)}`);
       }
       throw error;
     }
