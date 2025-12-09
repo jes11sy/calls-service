@@ -134,10 +134,10 @@ export class MangoService {
   /**
    * Инициирует callback через Mango Office
    * 
-   * Простая логика:
-   * 1. Mango звонит на extension 101
-   * 2. Extension 101 переадресует на мобильный (настроено в Mango)
-   * 3. После ответа — соединяет с клиентом
+   * Логика:
+   * 1. Mango звонит на номер МАСТЕРА (from.number)
+   * 2. Мастер отвечает
+   * 3. Mango соединяет с КЛИЕНТОМ (to_number)
    */
   async initiateCallback(params: {
     from: string;
@@ -149,16 +149,21 @@ export class MangoService {
       throw new Error('Mango Office API не настроен');
     }
 
-    // Чистим номер клиента — только цифры, без +
+    // Чистим номера — только цифры
+    const masterPhone = params.master_phone.replace(/\D/g, '');
     const clientPhone = params.to_number.replace(/\D/g, '');
     
-    // Минимальный JSON для callback
+    // Callback с номером мастера
+    // extension — для авторизации в АТС
+    // number — на какой номер звонить ПЕРВЫМ (мастер)
+    // to_number — с кем соединить после ответа (клиент)
     const requestBody = {
       command_id: params.command_id,
       from: {
-        extension: '101'
+        extension: '101',       // Extension для авторизации
+        number: masterPhone     // Номер МАСТЕРА — ему позвонят первому
       },
-      to_number: clientPhone
+      to_number: clientPhone    // Номер КЛИЕНТА — с ним соединят
     };
 
     const json = JSON.stringify(requestBody);
@@ -170,7 +175,7 @@ export class MangoService {
 
     this.logger.log(`📞 CALLBACK REQUEST:`);
     this.logger.log(`   JSON: ${json}`);
-    this.logger.log(`   API Key: ${this.apiKey.substring(0, 8)}...`);
+    this.logger.log(`   Master: ${masterPhone} → Client: ${clientPhone}`);
 
     try {
       const response = await axios.post(
@@ -188,9 +193,10 @@ export class MangoService {
 
       this.logger.log(`✅ RESPONSE: ${JSON.stringify(response.data)}`);
       
-      // Проверяем результат
-      if (response.data.result && response.data.result !== 0) {
-        this.logger.error(`❌ Mango вернул ошибку: result=${response.data.result}`);
+      // result: 1000 = успех (команда в процессе)
+      // result: 0 = успех
+      if (response.data.result && response.data.result !== 0 && response.data.result !== 1000) {
+        this.logger.error(`❌ Mango error: result=${response.data.result}`);
       }
       
       return response.data;
