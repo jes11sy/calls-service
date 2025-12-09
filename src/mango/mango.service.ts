@@ -153,17 +153,24 @@ export class MangoService {
     const masterPhone = params.master_phone.replace(/\D/g, '');
     const clientPhone = params.to_number.replace(/\D/g, '');
     
-    // Callback с номером мастера
-    // extension — для авторизации в АТС
-    // number — на какой номер звонить ПЕРВЫМ (мастер)
-    // to_number — с кем соединить после ответа (клиент)
+    // ВАЖНО: В Mango callback API параметр from.number должен быть 
+    // номером ИЗ ПУЛА АТС (исходящим номером), а не произвольным!
+    //
+    // Правильная логика для callback на произвольный номер:
+    // 1. from.extension = внутренний номер
+    // 2. from.number = исходящий номер АТС (для Caller ID)
+    // 3. to_number = номер на который звонить (мастер)
+    // 
+    // После ответа мастера — нужно будет делать transfer на клиента
+    // Но это уже отдельная логика через события
+    
     const requestBody = {
       command_id: params.command_id,
       from: {
-        extension: '101',       // Extension для авторизации
-        number: masterPhone     // Номер МАСТЕРА — ему позвонят первому
+        extension: '101',
+        number: '79585407673'    // Исходящий номер АТС (Caller ID)
       },
-      to_number: clientPhone    // Номер КЛИЕНТА — с ним соединят
+      to_number: masterPhone     // Звоним МАСТЕРУ
     };
 
     const json = JSON.stringify(requestBody);
