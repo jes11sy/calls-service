@@ -133,27 +133,32 @@ export class MangoService {
 
   /**
    * Инициирует callback звонок через Mango Office API
-   * Сначала звонит мастеру, затем соединяет с клиентом
+   * Использует системный extension для инициации звонка мастеру
    */
   async initiateCallback(params: {
-    from: string;        // phone_ats - номер АТС (отобразится у клиента)
-    to_number: string;   // phone клиента
-    sip_id: string;      // номер мастера
-    command_id: string;  // уникальный ID команды
+    from: string;          // phone_ats - номер АТС (отобразится у клиента)
+    to_number: string;     // phone клиента
+    master_phone: string;  // номер мастера
+    command_id: string;    // уникальный ID команды
   }): Promise<any> {
     if (!this.isConfigured()) {
       throw new Error('Mango Office API не настроен');
     }
 
     try {
+      // Используем системный extension 10 (админ) для всех callback
+      const SYSTEM_EXTENSION = '10';
+      
+      // Используем /commands/call вместо /commands/callback
+      // Сначала звоним мастеру
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: params.sip_id,  // SIP или номер мастера
-          number: params.from,        // Номер АТС
+          extension: SYSTEM_EXTENSION,     // Системный SIP extension
+          number: params.from,              // Номер АТС (отобразится у мастера)
         },
-        to_number: params.to_number,  // Номер клиента
-        line_number: params.from,     // Линия для исходящего
+        to_number: params.master_phone,    // Звоним мастеру
+        line_number: params.from,          // Линия для исходящего
       });
 
       const sign = crypto
@@ -161,11 +166,12 @@ export class MangoService {
         .update(`${this.apiKey}${json}${this.apiSalt}`)
         .digest('hex');
 
-      this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Master: ${params.sip_id} → Client: ${params.to_number} (via ${params.from})`);
+      this.logger.log(`📞 Initiating call to master: ${params.command_id}`);
+      this.logger.log(`   Extension: ${SYSTEM_EXTENSION} → Master: ${params.master_phone} (via ${params.from})`);
+      this.logger.log(`   Client to connect: ${params.to_number}`);
 
       const response = await axios.post(
-        `${this.apiUrl}/commands/callback`,
+        `${this.apiUrl}/commands/call`,
         new URLSearchParams({
           vpbx_api_key: this.apiKey,
           sign: sign,
@@ -179,7 +185,11 @@ export class MangoService {
         }
       );
 
-      this.logger.log(`✅ Callback initiated successfully: ${JSON.stringify(response.data)}`);
+      this.logger.log(`✅ Call to master initiated: ${JSON.stringify(response.data)}`);
+      
+      // TODO: После ответа мастера нужно будет позвонить клиенту
+      // Это требует обработки webhook от Mango Office
+      
       return response.data;
     } catch (error) {
       this.logger.error(`❌ Failed to initiate callback: ${error.message}`);

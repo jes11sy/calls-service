@@ -499,7 +499,7 @@ export class CallsService {
       const mangoResult = await this.mangoService.initiateCallback({
         from: formattedPhoneAts,         // Номер АТС (отобразится у клиента)
         to_number: formattedClientPhone, // Номер клиента
-        sip_id: formattedMasterPhone,    // Номер мастера
+        master_phone: formattedMasterPhone, // Номер мастера
         command_id: commandId,
       });
 
