@@ -146,14 +146,13 @@ export class MangoService {
     }
 
     try {
-      // Согласно документации: extension - это идентификатор сотрудника
-      // Попробуем разные варианты
-      const SYSTEM_EXTENSION = '10';  // Внутренний номер как строка
+      // Последняя попытка: extension как число
+      const SYSTEM_EXTENSION = 10;  // Внутренний номер как ЧИСЛО
       
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,  // Идентификатор сотрудника
+          extension: SYSTEM_EXTENSION,  // Идентификатор сотрудника (число)
           number: params.from,          // Номер АТС (с которого звоним)
         },
         to_number: params.master_phone, // Сначала звоним МАСТЕРУ
