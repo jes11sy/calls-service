@@ -149,10 +149,15 @@ export class MangoService {
       // Extension как СТРОКА, номера БЕЗ +
       const SYSTEM_EXTENSION = "10";
       
-      // Убираем + из номеров
+      // Убираем + из номеров и проверяем что это не SIP
       const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
       const cleanClientPhone = params.to_number.replace(/\+/g, '');
-      const cleanAtsPhone = params.from.replace(/\+/g, '');
+      
+      // Если line_number это SIP - не указываем его вообще
+      let lineNumber = undefined;
+      if (params.from && !params.from.includes('sip:')) {
+        lineNumber = params.from.replace(/\+/g, '');
+      }
       
       const json = JSON.stringify({
         command_id: params.command_id,
@@ -160,7 +165,7 @@ export class MangoService {
           extension: SYSTEM_EXTENSION,
         },
         to_number: cleanMasterPhone,
-        line_number: cleanAtsPhone,
+        ...(lineNumber && { line_number: lineNumber }),
       });
 
       const sign = crypto
@@ -169,7 +174,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}", to_number: ${cleanMasterPhone}, line: ${cleanAtsPhone}`);
+      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}", to_number: ${cleanMasterPhone}, line: ${lineNumber || 'not specified'}`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
