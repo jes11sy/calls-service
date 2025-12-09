@@ -154,17 +154,19 @@ export class MangoService {
       const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
       const cleanClientPhone = params.to_number.replace(/\+/g, '');
       
-      // НЕ передаём line_number - Mango сам выберет дефолтный номер АТС
-      // Если передать номер, который не привязан к АТС - получим ошибку 3103
-      // line_number можно будет добавить позже, когда настроим список номеров в Mango
+      // Системный extension для callback (должен быть настроен в Mango Office)
+      // Этот extension используется для авторизации callback запроса
+      const SYSTEM_EXTENSION = process.env.MANGO_CALLBACK_EXTENSION || '101';
       
       // Формируем JSON запрос
-      // from.number - внешний номер, на который Mango позвонит ПЕРВЫМ (номер мастера)
-      // to_number - номер, с которым соединят после ответа (номер клиента)
+      // from.extension - внутренний номер для авторизации в АТС
+      // from.number - внешний номер мастера, на который Mango позвонит ПЕРВЫМ
+      // to_number - номер клиента, с которым соединят после ответа мастера
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          number: cleanMasterPhone,  // Номер МАСТЕРА - ему позвонят первому
+          extension: SYSTEM_EXTENSION,  // Extension для авторизации
+          number: cleanMasterPhone,     // Номер МАСТЕРА - ему позвонят первому
         },
         to_number: cleanClientPhone,    // Номер КЛИЕНТА - с ним соединят после ответа мастера
       });
@@ -175,7 +177,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Master: ${cleanMasterPhone} → Client: ${cleanClientPhone} (line_number: default)`);
+      this.logger.log(`   Extension: ${SYSTEM_EXTENSION}, Master: ${cleanMasterPhone} → Client: ${cleanClientPhone}`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
