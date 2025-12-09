@@ -154,24 +154,19 @@ export class MangoService {
       const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
       const cleanClientPhone = params.to_number.replace(/\+/g, '');
       
-      // line_number - номер АТС, который увидит клиент
-      // Если это SIP - не указываем
-      let lineNumber: string | undefined = undefined;
-      if (params.from && !params.from.includes('sip:')) {
-        lineNumber = params.from.replace(/\+/g, '');
-      }
+      // НЕ передаём line_number - Mango сам выберет дефолтный номер АТС
+      // Если передать номер, который не привязан к АТС - получим ошибку 3103
+      // line_number можно будет добавить позже, когда настроим список номеров в Mango
       
       // Формируем JSON запрос
       // from.number - внешний номер, на который Mango позвонит ПЕРВЫМ (номер мастера)
       // to_number - номер, с которым соединят после ответа (номер клиента)
-      // line_number - какой номер покажется клиенту (номер АТС)
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
           number: cleanMasterPhone,  // Номер МАСТЕРА - ему позвонят первому
         },
         to_number: cleanClientPhone,    // Номер КЛИЕНТА - с ним соединят после ответа мастера
-        ...(lineNumber && { line_number: lineNumber }),
       });
 
       const sign = crypto
@@ -180,7 +175,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Master: ${cleanMasterPhone} → Client: ${cleanClientPhone}, line: ${lineNumber || 'not specified'}`);
+      this.logger.log(`   Master: ${cleanMasterPhone} → Client: ${cleanClientPhone} (line_number: default)`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
