@@ -153,24 +153,19 @@ export class MangoService {
     const masterPhone = params.master_phone.replace(/\D/g, '');
     const clientPhone = params.to_number.replace(/\D/g, '');
     
-    // Согласно документации Mango Office:
-    // from.extension = внутренний номер сотрудника (обязательный)
-    // from.number = номер ОТКУДА звонить (если отличается от номера по умолчанию)
-    //               "на время вызова этот номер будет считаться номером сотрудника"
-    // to_number = номер КУДА звонить (с кем соединить после ответа)
-    //
-    // Логика callback:
-    // 1. Mango звонит на from.number (мастер)
-    // 2. Мастер отвечает
-    // 3. Mango соединяет с to_number (клиент)
+    // Формат как на сайте Mango "Заказ звонка":
+    // - "Позвонить мне на номер" = from (номер мастера)
+    // - "Соединить с абонентом" = to_number (номер клиента)
+    // Без extension, просто номера!
     
     const requestBody = {
       command_id: params.command_id,
       from: {
         extension: '101',
-        number: masterPhone      // Номер МАСТЕРА — ему позвонят первому!
+        number: masterPhone       // "Позвонить мне на номер" — МАСТЕР
       },
-      to_number: clientPhone     // Номер КЛИЕНТА — с ним соединят после ответа
+      to_number: clientPhone,     // "Соединить с абонентом" — КЛИЕНТ
+      line_number: '79585407673'  // Исходящая линия АТС
     };
 
     const json = JSON.stringify(requestBody);
