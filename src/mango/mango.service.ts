@@ -146,20 +146,24 @@ export class MangoService {
     }
 
     try {
-      // Используем системный extension 10 (админ) для всех callback
+      // Используем extension 10 (существующий сотрудник)
       const SYSTEM_EXTENSION = '10';
       
-      // Mango Office callback: сначала звонит на extension, потом на to_number
-      // Но extension 10 - это SIP, который должен ответить
-      // Поэтому используем номер мастера в extension (попытка)
+      // Mango Office callback работает так:
+      // 1. Звонит на extension 10 (SIP телефон админа)
+      // 2. Когда админ ответит, звонит на to_number (клиент)
+      // 3. Соединяет их
+      // НО: мы хотим звонить мастеру, а не админу!
+      // РЕШЕНИЕ: используем sip_id для переадресации на мастера
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: params.master_phone,  // Пробуем номер мастера как extension
-          number: params.from,              // Номер АТС
+          extension: SYSTEM_EXTENSION,  // Extension 10
+          number: params.from,           // Номер АТС
         },
-        to_number: params.to_number,       // Номер клиента
-        line_number: params.from,          // Линия для исходящего
+        to_number: params.to_number,    // Номер клиента
+        sip_id: params.master_phone,    // Номер мастера (переадресация)
+        line_number: params.from,       // Линия для исходящего
       });
 
       const sign = crypto
@@ -168,7 +172,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension (master phone): ${params.master_phone} → Client: ${params.to_number} (via ${params.from})`);
+      this.logger.log(`   Extension: ${SYSTEM_EXTENSION}, Master: ${params.master_phone} → Client: ${params.to_number} (via ${params.from})`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
