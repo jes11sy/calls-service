@@ -516,15 +516,17 @@ export class CallsService {
       await this.auditLogger.log({
         action: 'INITIATE_CALLBACK',
         userId: user.id,
-        userRole: user.role,
-        details: {
+        userLogin: user.login,
+        resourceType: 'callback',
+        resourceId: newCall.id,
+        metadata: {
+          userRole: user.role,
           orderId: dto.orderId,
           masterPhone: dto.masterPhone,
           clientPhone: order.phone,
           phoneAts: phoneAts,
           callSource: callSource, // Откуда взяли номер
           commandId,
-          callId: newCall.id,
         },
       });
 
@@ -545,8 +547,10 @@ export class CallsService {
       await this.auditLogger.log({
         action: 'INITIATE_CALLBACK_ERROR',
         userId: user.id,
-        userRole: user.role,
-        details: {
+        userLogin: user.login,
+        resourceType: 'callback',
+        metadata: {
+          userRole: user.role,
           orderId: dto.orderId,
           error: error.message,
         },
