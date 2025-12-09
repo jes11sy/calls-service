@@ -146,17 +146,21 @@ export class MangoService {
     }
 
     try {
-      // Extension 10 существует и может инициировать звонки
-      const SYSTEM_EXTENSION = 10;
+      // Extension как СТРОКА, номера БЕЗ +
+      const SYSTEM_EXTENSION = "10";
       
-      // НЕ указываем from.number - пусть Mango использует номер по умолчанию
+      // Убираем + из номеров
+      const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
+      const cleanClientPhone = params.to_number.replace(/\+/g, '');
+      const cleanAtsPhone = params.from.replace(/\+/g, '');
+      
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,  // Идентификатор сотрудника
+          extension: SYSTEM_EXTENSION,
         },
-        to_number: params.master_phone, // Звоним мастеру
-        line_number: params.from,       // Линия (номер АТС)
+        to_number: cleanMasterPhone,
+        line_number: cleanAtsPhone,
       });
 
       const sign = crypto
@@ -165,7 +169,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension: ${SYSTEM_EXTENSION} (from АТС: ${params.from}) → Master: ${params.master_phone}`);
+      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}", to_number: ${cleanMasterPhone}, line: ${cleanAtsPhone}`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
