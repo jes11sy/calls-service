@@ -133,12 +133,16 @@ export class MangoService {
 
   /**
    * Инициирует callback звонок через Mango Office API
-   * Использует системный extension для инициации звонка мастеру
+   * 
+   * Алгоритм работы:
+   * 1. Mango звонит на номер мастера (from.number)
+   * 2. Когда мастер отвечает - Mango соединяет его с клиентом (to_number)
+   * 3. У клиента отображается номер АТС (line_number)
    */
   async initiateCallback(params: {
     from: string;          // phone_ats - номер АТС (отобразится у клиента)
     to_number: string;     // phone клиента
-    master_phone: string;  // номер мастера
+    master_phone: string;  // номер мастера (кому звонить первому)
     command_id: string;    // уникальный ID команды
   }): Promise<any> {
     if (!this.isConfigured()) {
@@ -146,25 +150,27 @@ export class MangoService {
     }
 
     try {
-      // Extension как СТРОКА, номера БЕЗ +
-      const SYSTEM_EXTENSION = "10";
-      
-      // Убираем + из номеров и проверяем что это не SIP
+      // Убираем + из номеров (Mango API требует номера без +)
       const cleanMasterPhone = params.master_phone.replace(/\+/g, '');
       const cleanClientPhone = params.to_number.replace(/\+/g, '');
       
-      // Если line_number это SIP - не указываем его вообще
-      let lineNumber = undefined;
+      // line_number - номер АТС, который увидит клиент
+      // Если это SIP - не указываем
+      let lineNumber: string | undefined = undefined;
       if (params.from && !params.from.includes('sip:')) {
         lineNumber = params.from.replace(/\+/g, '');
       }
       
+      // Формируем JSON запрос
+      // from.number - внешний номер, на который Mango позвонит ПЕРВЫМ (номер мастера)
+      // to_number - номер, с которым соединят после ответа (номер клиента)
+      // line_number - какой номер покажется клиенту (номер АТС)
       const json = JSON.stringify({
         command_id: params.command_id,
         from: {
-          extension: SYSTEM_EXTENSION,  // Extension 10 (с переадресацией на мастера)
+          number: cleanMasterPhone,  // Номер МАСТЕРА - ему позвонят первому
         },
-        to_number: cleanClientPhone,    // КЛИЕНТ (с кем соединить после ответа мастера)
+        to_number: cleanClientPhone,    // Номер КЛИЕНТА - с ним соединят после ответа мастера
         ...(lineNumber && { line_number: lineNumber }),
       });
 
@@ -174,7 +180,7 @@ export class MangoService {
         .digest('hex');
 
       this.logger.log(`📞 Initiating callback: ${params.command_id}`);
-      this.logger.log(`   Extension: "${SYSTEM_EXTENSION}" (will call master via forwarding) → Client: ${cleanClientPhone}, line: ${lineNumber || 'not specified'}`);
+      this.logger.log(`   Master: ${cleanMasterPhone} → Client: ${cleanClientPhone}, line: ${lineNumber || 'not specified'}`);
 
       const response = await axios.post(
         `${this.apiUrl}/commands/callback`,
