@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CallsService } from './calls.service';
 import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
+import { InitiateCallbackDto } from './dto/initiate-callback.dto';
 import { GetCallsQueryDto } from './dto/call-query.dto';
 import { RolesGuard, Roles, UserRole } from '../auth/roles.guard';
 
@@ -83,6 +84,22 @@ export class CallsController {
   @ApiOperation({ summary: 'Get calls by phone number' })
   async getCallsByPhone(@Param('phone') phone: string) {
     return this.callsService.getCallsByPhone(phone);
+  }
+
+  @Post('initiate-callback')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.MASTER, UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Initiate callback to client',
+    description: 'Мастер инициирует звонок клиенту через Mango Office. Сначала система звонит мастеру, затем соединяет с клиентом.'
+  })
+  async initiateCallback(
+    @Body() dto: InitiateCallbackDto,
+    @Request() req: any,
+  ) {
+    return this.callsService.initiateCallback(dto, req.user);
   }
 }
 

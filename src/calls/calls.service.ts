@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
+import { InitiateCallbackDto } from './dto/initiate-callback.dto';
 import { AuditLoggerService } from '../common/services/audit-logger.service';
+import { MangoService } from '../mango/mango.service';
 
 @Injectable()
 export class CallsService {
   constructor(
     private prisma: PrismaService,
     private auditLogger: AuditLoggerService,
+    private mangoService: MangoService,
   ) {}
 
   async getCalls(query: any, user: any) {
@@ -406,6 +409,158 @@ export class CallsService {
       success: true,
       data: callsWithRecordingUrl
     };
+  }
+
+  /**
+   * Инициирует callback звонок мастеру с последующим соединением с клиентом
+   */
+  async initiateCallback(dto: InitiateCallbackDto, user: any) {
+    try {
+      // 1. Получаем заказ напрямую из БД (та же БД, что и у orders-service)
+      const order = await this.prisma.order.findUnique({
+        where: { id: dto.orderId },
+        select: {
+          id: true,
+          phone: true,
+          clientName: true,
+          rk: true,
+          city: true,
+          callId: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Заказ не найден');
+      }
+
+      if (!order.phone) {
+        throw new BadRequestException('У заказа отсутствует номер телефона клиента');
+      }
+
+      // 2. Определяем phoneAts с fallback стратегией
+      let phoneAts: string | null = null;
+      let callSource = '';
+
+      // Приоритет 1: Если у заказа есть callId - используем звонок из заказа
+      if (order.callId) {
+        const orderCall = await this.prisma.call.findUnique({
+          where: { callId: order.callId },
+          select: { phoneAts: true },
+        });
+        if (orderCall?.phoneAts) {
+          phoneAts = orderCall.phoneAts;
+          callSource = 'order_call';
+        }
+      }
+
+      // Приоритет 2: Ищем последний звонок от этого номера
+      if (!phoneAts) {
+        const lastCall = await this.prisma.call.findFirst({
+          where: { phoneClient: order.phone },
+          orderBy: { dateCreate: 'desc' },
+          select: { phoneAts: true },
+        });
+        if (lastCall?.phoneAts) {
+          phoneAts = lastCall.phoneAts;
+          callSource = 'client_history';
+        }
+      }
+
+      // Приоритет 3: Берём дефолтный номер для города и РК из таблицы phones
+      if (!phoneAts) {
+        const defaultPhone = await this.prisma.phone.findFirst({
+          where: {
+            city: order.city,
+            rk: order.rk,
+          },
+          select: { number: true },
+        });
+        if (defaultPhone?.number) {
+          phoneAts = defaultPhone.number;
+          callSource = 'default_city_rk';
+        }
+      }
+
+      // Если вообще ничего не нашли - ошибка
+      if (!phoneAts) {
+        throw new BadRequestException(
+          `Не найден номер АТС для звонка. Клиент не звонил, и нет дефолтного номера для города "${order.city}" и РК "${order.rk}".`
+        );
+      }
+
+      // 3. Инициируем callback через Mango Office
+      const commandId = `callback_${dto.orderId}_${Date.now()}`;
+      
+      const mangoResult = await this.mangoService.initiateCallback({
+        from: phoneAts,                  // Номер АТС (отобразится у клиента)
+        to_number: order.phone,          // Номер клиента
+        sip_id: dto.masterPhone,         // Номер мастера
+        command_id: commandId,
+      });
+
+      // 4. Создаём запись о звонке в БД
+      const newCall = await this.prisma.call.create({
+        data: {
+          rk: order.rk || 'callback',
+          city: order.city || 'unknown',
+          phoneClient: order.phone,
+          phoneAts: phoneAts,
+          operatorId: user.id,
+          status: 'initiated',
+          callId: mangoResult.call_id || commandId,
+          dateCreate: new Date(),
+        },
+      });
+
+      // 5. Логируем успешную инициацию
+      await this.auditLogger.log({
+        action: 'INITIATE_CALLBACK',
+        userId: user.id,
+        userRole: user.role,
+        details: {
+          orderId: dto.orderId,
+          masterPhone: dto.masterPhone,
+          clientPhone: order.phone,
+          phoneAts: phoneAts,
+          callSource: callSource, // Откуда взяли номер
+          commandId,
+          callId: newCall.id,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Звонок инициирован. Ожидайте входящего звонка на ваш номер.',
+        data: {
+          commandId,
+          callId: newCall.id,
+          clientPhone: order.phone,
+          clientName: order.clientName,
+          phoneAts: phoneAts,
+          callSource: callSource, // Для отладки
+        },
+      };
+    } catch (error) {
+      // Логируем ошибку
+      await this.auditLogger.log({
+        action: 'INITIATE_CALLBACK_ERROR',
+        userId: user.id,
+        userRole: user.role,
+        details: {
+          orderId: dto.orderId,
+          error: error.message,
+        },
+      });
+
+      // Пробрасываем ошибку дальше
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        `Не удалось инициировать звонок: ${error.message}`
+      );
+    }
   }
 }
 

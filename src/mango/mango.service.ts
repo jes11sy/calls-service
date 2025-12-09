@@ -130,5 +130,64 @@ export class MangoService {
   isConfigured(): boolean {
     return !!(this.apiKey && this.apiSalt);
   }
+
+  /**
+   * Инициирует callback звонок через Mango Office API
+   * Сначала звонит мастеру, затем соединяет с клиентом
+   */
+  async initiateCallback(params: {
+    from: string;        // phone_ats - номер АТС (отобразится у клиента)
+    to_number: string;   // phone клиента
+    sip_id: string;      // номер мастера
+    command_id: string;  // уникальный ID команды
+  }): Promise<any> {
+    if (!this.isConfigured()) {
+      throw new Error('Mango Office API не настроен');
+    }
+
+    try {
+      const json = JSON.stringify({
+        command_id: params.command_id,
+        from: {
+          extension: params.sip_id,  // SIP или номер мастера
+          number: params.from,        // Номер АТС
+        },
+        to_number: params.to_number,  // Номер клиента
+        line_number: params.from,     // Линия для исходящего
+      });
+
+      const sign = crypto
+        .createHash('sha256')
+        .update(`${this.apiKey}${json}${this.apiSalt}`)
+        .digest('hex');
+
+      this.logger.log(`📞 Initiating callback: ${params.command_id}`);
+      this.logger.log(`   Master: ${params.sip_id} → Client: ${params.to_number} (via ${params.from})`);
+
+      const response = await axios.post(
+        `${this.apiUrl}/commands/callback`,
+        new URLSearchParams({
+          vpbx_api_key: this.apiKey,
+          sign: sign,
+          json: json,
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          timeout: 10000,
+        }
+      );
+
+      this.logger.log(`✅ Callback initiated successfully: ${JSON.stringify(response.data)}`);
+      return response.data;
+    } catch (error) {
+      this.logger.error(`❌ Failed to initiate callback: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`   Response: ${JSON.stringify(error.response.data)}`);
+      }
+      throw error;
+    }
+  }
 }
 
