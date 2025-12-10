@@ -31,7 +31,14 @@ export class WebhookService {
         answer_time,
         end_time,
         disconnect_reason,
+        command_id,
       } = payload;
+
+      // Игнорируем callback звонки (инициированные через initiateCallback)
+      if (command_id && command_id.startsWith('callback_')) {
+        this.logger.log(`Ignoring callback call ${call_id}, command_id: ${command_id}`);
+        return { success: true, message: 'Callback call ignored' };
+      }
 
       // Игнорируем звонки в IVR
       if (location === 'ivr') {
@@ -75,11 +82,18 @@ export class WebhookService {
         end_time,
         entry_result,
         disconnect_reason,
+        command_id,
       } = summaryData;
 
       if (!entry_id) {
         this.logger.warn('Entry ID is missing in summary event');
         return { success: true, message: 'Entry ID missing' };
+      }
+
+      // Игнорируем callback звонки
+      if (command_id && command_id.startsWith('callback_')) {
+        this.logger.log(`Ignoring callback call: ${entry_id}, command_id: ${command_id}`);
+        return { success: true, message: 'Callback call ignored' };
       }
 
       // Игнорируем исходящие звонки (call_direction = 2)
@@ -256,9 +270,15 @@ export class WebhookService {
   }
 
   private async handleCallAppeared(payload: any) {
-    const { call_id, from, to, create_time, timestamp } = payload;
+    const { call_id, from, to, create_time, timestamp, command_id } = payload;
 
     this.logger.log(`Call appeared: ${call_id}`);
+
+    // Игнорируем callback звонки
+    if (command_id && command_id.startsWith('callback_')) {
+      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
+      return { success: true, message: 'Callback call ignored' };
+    }
 
     // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
     if (this.isOutboundCall(from, to)) {
@@ -296,7 +316,7 @@ export class WebhookService {
   }
 
   private async handleCallConnected(payload: any) {
-    const { call_id, from, to, answer_time, create_time, timestamp } = payload;
+    const { call_id, from, to, answer_time, create_time, timestamp, command_id } = payload;
 
     if (!call_id) {
       this.logger.warn('Call ID is missing in Connected event');
@@ -304,6 +324,12 @@ export class WebhookService {
     }
 
     this.logger.log(`Call connected: ${call_id}`);
+
+    // Игнорируем callback звонки
+    if (command_id && command_id.startsWith('callback_')) {
+      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
+      return { success: true, message: 'Callback call ignored' };
+    }
 
     // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
     if (this.isOutboundCall(from, to)) {
@@ -394,7 +420,7 @@ export class WebhookService {
   }
 
   private async handleCallDisconnected(payload: any) {
-    const { call_id, from, to, entry_id, disconnect_reason, create_time, answer_time, end_time, timestamp } = payload;
+    const { call_id, from, to, entry_id, disconnect_reason, create_time, answer_time, end_time, timestamp, command_id } = payload;
 
     if (!call_id) {
       this.logger.warn('Call ID is missing in Disconnected event');
@@ -402,6 +428,12 @@ export class WebhookService {
     }
 
     this.logger.log(`Call disconnected: ${call_id}, reason: ${disconnect_reason}`);
+
+    // Игнорируем callback звонки
+    if (command_id && command_id.startsWith('callback_')) {
+      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
+      return { success: true, message: 'Callback call ignored' };
+    }
 
     // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
     if (this.isOutboundCall(from, to)) {
@@ -512,6 +544,12 @@ export class WebhookService {
       answer_time,
       end_time,
     } = payload;
+
+    // Игнорируем callback звонки
+    if (command_id && command_id.startsWith('callback_')) {
+      this.logger.log(`Ignoring callback call (legacy): ${call_id || 'unknown'}, command_id: ${command_id}`);
+      return { success: true, message: 'Callback call ignored' };
+    }
 
     // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
     if (this.isOutboundCall(from, to)) {
