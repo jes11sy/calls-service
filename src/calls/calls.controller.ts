@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { CookieJwtAuthGuard } from '../auth/guards/cookie-jwt-auth.guard';
 import { CallsService } from './calls.service';
 import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
 import { InitiateCallbackDto } from './dto/initiate-callback.dto';
@@ -24,7 +24,7 @@ export class CallsController {
   }
 
   @Get()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get all calls' })
@@ -33,7 +33,7 @@ export class CallsController {
   }
 
   @Get('stats')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get call statistics' })
@@ -42,7 +42,7 @@ export class CallsController {
   }
 
   @Get('order/:orderId')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR, UserRole.MASTER)
   @ApiOperation({ summary: 'Get calls by order ID (only calls with recordings)' })
@@ -51,7 +51,7 @@ export class CallsController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get call by ID' })
@@ -60,7 +60,7 @@ export class CallsController {
   }
 
   @Post()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR)
   @ApiOperation({ summary: 'Create call manually' })
@@ -69,7 +69,7 @@ export class CallsController {
   }
 
   @Put(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update call' })
@@ -78,7 +78,7 @@ export class CallsController {
   }
 
   @Get('by-phone/:phone')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get calls by phone number' })
@@ -87,7 +87,7 @@ export class CallsController {
   }
 
   @Post('initiate-callback')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.MASTER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)

@@ -1,6 +1,6 @@
 import { Controller, Get, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { CookieJwtAuthGuard } from '../auth/guards/cookie-jwt-auth.guard';
 import { RecordingsService } from './recordings.service';
 import { RolesGuard, Roles, UserRole } from '../auth/roles.guard';
 
@@ -10,7 +10,7 @@ export class RecordingsController {
   constructor(private recordingsService: RecordingsService) {}
 
   @Get('call/:id/download')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR, UserRole.MASTER)
   @HttpCode(HttpStatus.OK)

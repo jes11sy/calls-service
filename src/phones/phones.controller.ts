@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { CookieJwtAuthGuard } from '../auth/guards/cookie-jwt-auth.guard';
 import { PhonesService } from './phones.service';
 import { RolesGuard, Roles, UserRole } from '../auth/roles.guard';
 import { CreatePhoneDto, UpdatePhoneDto } from './dto/phone.dto';
@@ -22,7 +22,7 @@ export class PhonesController {
   }
 
   @Get()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get all phone numbers' })
@@ -31,7 +31,7 @@ export class PhonesController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get phone number by ID' })
@@ -40,7 +40,7 @@ export class PhonesController {
   }
 
   @Post()
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
   @ApiOperation({ summary: 'Create new phone number' })
@@ -49,7 +49,7 @@ export class PhonesController {
   }
 
   @Put(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
   @ApiOperation({ summary: 'Update phone number' })
@@ -58,7 +58,7 @@ export class PhonesController {
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
   @ApiOperation({ summary: 'Delete phone number' })
