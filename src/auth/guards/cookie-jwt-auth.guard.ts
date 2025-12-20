@@ -82,9 +82,14 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
       this.logger.debug(`📊 JWT structure: ${jwtParts.length} parts (should be 3)`);
       this.logger.debug(`📊 JWT parts lengths: ${jwtParts.map(p => p.length).join(', ')}`);
       
-      if (jwtParts.length !== 3) {
+      // ✅ FIX: Если 4 части - это JWT + cookie signature от Fastify
+      // Берём только первые 3 части (header.payload.jwtSignature)
+      if (jwtParts.length === 4) {
+        this.logger.warn(`⚠️ Detected Fastify cookie signature appended to JWT, stripping it...`);
+        cookieToken = jwtParts.slice(0, 3).join('.');
+        this.logger.debug(`✅ Fixed JWT: ${cookieToken.substring(0, 50)}...`);
+      } else if (jwtParts.length !== 3) {
         this.logger.error(`❌ Invalid JWT structure! Expected 3 parts, got ${jwtParts.length}`);
-        this.logger.error(`   This usually means cookie signature was not properly removed`);
       }
       
       request.headers.authorization = `Bearer ${cookieToken}`;
