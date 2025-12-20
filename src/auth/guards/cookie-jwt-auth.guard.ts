@@ -36,8 +36,11 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
         // Если подпись не валидна - пробуем использовать как неподписанный (fallback)
         if (unsigned && !unsigned.valid) {
           this.logger.warn('⚠️ Invalid access token signature, trying as unsigned cookie');
-          // Если подпись не прошла, пробуем использовать cookie напрямую (может быть он неподписанный)
-          cookieToken = signedCookie;
+          // Если подпись не прошла, пробуем использовать cookie напрямую
+          // Если cookie имеет префикс подписи Fastify (s:), удаляем его
+          cookieToken = signedCookie.startsWith('s:') 
+            ? signedCookie.substring(2).split('.').slice(0, 3).join('.') // Убираем префикс и берем только JWT части
+            : signedCookie;
         }
       }
     } else if (cookiesSource) {
@@ -47,8 +50,10 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
     
     // Если токен найден в cookie и нет Authorization header, добавляем его
     if (cookieToken && !request.headers.authorization) {
-      request.headers.authorization = `Bearer ${cookieToken}`;
-      this.logger.debug('✅ Token extracted from httpOnly cookie');
+      // Очищаем токен от возможных префиксов подписи Fastify (s:...)
+      const cleanToken = cookieToken.startsWith('s:') ? cookieToken.substring(2) : cookieToken;
+      request.headers.authorization = `Bearer ${cleanToken}`;
+      this.logger.debug(`✅ Token extracted from cookie: ${cleanToken.substring(0, 50)}...`);
     }
     
     // Вызываем стандартную JWT валидацию
