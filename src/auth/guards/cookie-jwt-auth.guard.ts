@@ -76,7 +76,17 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
     
     // Если токен найден в cookie и нет Authorization header, добавляем его
     if (cookieToken && !request.headers.authorization) {
+      // Анализируем структуру JWT
+      const jwtParts = cookieToken.split('.');
       this.logger.debug(`✅ Token extracted from cookie: ${cookieToken.substring(0, 50)}...`);
+      this.logger.debug(`📊 JWT structure: ${jwtParts.length} parts (should be 3)`);
+      this.logger.debug(`📊 JWT parts lengths: ${jwtParts.map(p => p.length).join(', ')}`);
+      
+      if (jwtParts.length !== 3) {
+        this.logger.error(`❌ Invalid JWT structure! Expected 3 parts, got ${jwtParts.length}`);
+        this.logger.error(`   This usually means cookie signature was not properly removed`);
+      }
+      
       request.headers.authorization = `Bearer ${cookieToken}`;
     }
     
@@ -86,6 +96,18 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest(err: any, user: any, info: any) {
     if (err || !user) {
+      // Детальное логирование ошибки
+      this.logger.error(`❌ JWT Verification failed!`);
+      this.logger.error(`   Error: ${err?.message || 'none'}`);
+      this.logger.error(`   Info: ${JSON.stringify(info)}`);
+      this.logger.error(`   Info name: ${info?.name}`);
+      this.logger.error(`   Info message: ${info?.message}`);
+      
+      // Логируем первые символы JWT_SECRET для проверки
+      const secret = process.env.JWT_SECRET;
+      this.logger.error(`   JWT_SECRET starts with: ${secret?.substring(0, 10)}...`);
+      this.logger.error(`   JWT_SECRET length: ${secret?.length}`);
+      
       if (info?.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Access token has expired. Please refresh your token.');
       }
