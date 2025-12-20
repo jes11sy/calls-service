@@ -9,7 +9,7 @@ export class RealtimeService {
   private readonly axiosInstance;
 
   constructor() {
-    this.realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://realtime-service:5009';
+    this.realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://172.18.0.9:5009';
     this.webhookToken = process.env.WEBHOOK_TOKEN || '';
     this.axiosInstance = createRetryableAxiosInstance(5000, 3);
 
