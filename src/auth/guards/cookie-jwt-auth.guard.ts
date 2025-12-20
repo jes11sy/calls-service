@@ -25,19 +25,20 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
     const unsignCookieFn = (request as any).unsignCookie || (request.raw as any)?.unsignCookie || null;
     
     if (cookiesSource && CookieConfig.ENABLE_COOKIE_SIGNING && unsignCookieFn) {
-      // Пытаемся получить подписанный cookie
+      // Пытаемся получить подписанный cookie (защита от tampering)
       const signedCookie = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
       if (signedCookie) {
-        const unsigned = unsignCookieFn(signedCookie, CookieConfig.COOKIE_SECRET);
+        const unsigned = unsignCookieFn(signedCookie);
         cookieToken = unsigned?.valid ? unsigned.value : null;
         
+        // Если подпись не валидна
         if (unsigned && !unsigned.valid) {
           this.logger.warn('⚠️ Invalid access token signature. Possible tampering.');
-          throw new UnauthorizedException('Invalid access token signature. Possible tampering.');
+          throw new UnauthorizedException('Invalid cookie signature detected. Possible tampering attempt.');
         }
       }
     } else if (cookiesSource) {
-      // Неподписанный cookie
+      // Fallback на обычные cookies если signing отключен
       cookieToken = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
     }
     
