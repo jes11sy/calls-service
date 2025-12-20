@@ -24,28 +24,25 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
     const cookiesSource = (request as any).cookies || (request.raw as any)?.cookies || null;
     const unsignCookieFn = (request as any).unsignCookie || (request.raw as any)?.unsignCookie || null;
     
-    if (cookiesSource && CookieConfig.ENABLE_COOKIE_SIGNING && unsignCookieFn) {
-      // Пытаемся получить подписанный cookie (защита от tampering)
-      const signedCookie = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
-      if (signedCookie) {
-        this.logger.debug(`🔍 Checking signed cookie: ${signedCookie.substring(0, 50)}...`);
-        const unsigned = unsignCookieFn(signedCookie);
-        this.logger.debug(`🔍 Unsigned result: valid=${unsigned?.valid}, value exists=${!!unsigned?.value}`);
-        cookieToken = unsigned?.valid ? unsigned.value : null;
-        
-        // Если подпись не валидна - пробуем использовать как неподписанный (fallback)
-        if (unsigned && !unsigned.valid) {
-          this.logger.warn('⚠️ Invalid access token signature, trying as unsigned cookie');
-          // Если подпись не прошла, пробуем использовать cookie напрямую
-          // Если cookie имеет префикс подписи Fastify (s:), удаляем его
-          cookieToken = signedCookie.startsWith('s:') 
-            ? signedCookie.substring(2).split('.').slice(0, 3).join('.') // Убираем префикс и берем только JWT части
-            : signedCookie;
+    if (cookiesSource) {
+      const rawCookie = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
+      if (rawCookie) {
+        // Проверяем: если cookie начинается с 's:' - это подписанный cookie Fastify
+        // Иначе - это неподписанный JWT токен
+        if (rawCookie.startsWith('s:') && CookieConfig.ENABLE_COOKIE_SIGNING && unsignCookieFn) {
+          // Подписанный cookie - проверяем подпись
+          const unsigned = unsignCookieFn(rawCookie);
+          if (unsigned?.valid) {
+            cookieToken = unsigned.value;
+          } else {
+            this.logger.warn('⚠️ Invalid access token signature. Possible tampering.');
+            throw new UnauthorizedException('Invalid cookie signature detected. Possible tampering attempt.');
+          }
+        } else {
+          // Неподписанный cookie (обычный JWT) - используем напрямую
+          cookieToken = rawCookie;
         }
       }
-    } else if (cookiesSource) {
-      // Fallback на обычные cookies если signing отключен
-      cookieToken = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
     }
     
     // Если токен найден в cookie и нет Authorization header, добавляем его
