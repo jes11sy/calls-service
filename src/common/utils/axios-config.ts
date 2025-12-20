@@ -1,8 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
+import * as https from 'https';
 
 export function createRetryableAxiosInstance(baseTimeout: number = 5000, retries: number = 3): AxiosInstance {
   const instance = axios.create({
     timeout: baseTimeout,
+    httpsAgent: new https.Agent({  
+      rejectUnauthorized: false // Отключаем проверку SSL для внутренних запросов
+    })
   });
 
   // Add retry interceptor
