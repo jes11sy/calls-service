@@ -28,9 +28,7 @@ export class CookieJwtAuthGuard extends AuthGuard('jwt') {
       // Пытаемся получить подписанный cookie
       const signedCookie = cookiesSource[CookieConfig.ACCESS_TOKEN_NAME];
       if (signedCookie) {
-        // ⚠️ ВАЖНО: unsignCookie НЕ принимает secret как параметр!
-        // Секрет берется из конфигурации @fastify/cookie плагина
-        const unsigned = unsignCookieFn(signedCookie);
+        const unsigned = unsignCookieFn(signedCookie, CookieConfig.COOKIE_SECRET);
         cookieToken = unsigned?.valid ? unsigned.value : null;
         
         if (unsigned && !unsigned.valid) {
