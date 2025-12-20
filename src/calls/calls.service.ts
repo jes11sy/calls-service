@@ -4,6 +4,7 @@ import { CreateCallDto, UpdateCallDto } from './dto/call.dto';
 import { InitiateCallbackDto } from './dto/initiate-callback.dto';
 import { AuditLoggerService } from '../common/services/audit-logger.service';
 import { MangoService } from '../mango/mango.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class CallsService {
@@ -11,6 +12,7 @@ export class CallsService {
     private prisma: PrismaService,
     private auditLogger: AuditLoggerService,
     private mangoService: MangoService,
+    private realtimeService: RealtimeService,
   ) {}
 
   async getCalls(query: any, user: any) {
@@ -186,12 +188,26 @@ export class CallsService {
         recordUrl: dto.recordUrl,
         operatorId: user.userId,
       },
+      include: {
+        operator: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     this.auditLogger.logCallCreated(call.id, user.userId, user.login, {
       phoneClient: dto.phoneClient,
       status: dto.status,
     });
+
+    // 📡 Broadcast нового звонка через WebSocket
+    await this.realtimeService.broadcastNewCall(call, [
+      'operators',
+      `operator:${user.userId}`,
+    ]);
 
     return {
       success: true,
