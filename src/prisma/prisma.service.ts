@@ -18,6 +18,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       'pool_timeout=20',          // Таймаут получения соединения: 20s
       'connect_timeout=10',       // Таймаут подключения к БД: 10s
       'socket_timeout=60',        // Таймаут socket: 60s
+      // ✅ FIX: TCP Keepalive для предотвращения idle-session timeout
+      'keepalives=1',
+      'keepalives_idle=30',
+      'keepalives_interval=10',
+      'keepalives_count=3',
     ];
     
     const needsParams = !databaseUrl.includes('connection_limit');
