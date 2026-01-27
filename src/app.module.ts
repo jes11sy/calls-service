@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +18,24 @@ import { PhonesModule } from './phones/phones.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    // ✅ FIX #159: Rate limiting для защиты от DDoS и брутфорса
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,   // 1 секунда
+        limit: 10,   // 10 запросов в секунду
+      },
+      {
+        name: 'medium',
+        ttl: 10000,  // 10 секунд
+        limit: 50,   // 50 запросов за 10 секунд
+      },
+      {
+        name: 'long',
+        ttl: 60000,  // 1 минута
+        limit: 200,  // 200 запросов в минуту
+      },
+    ]),
     PrometheusModule.register({
       defaultMetrics: { enabled: true },
       path: '/metrics',
@@ -29,6 +49,12 @@ import { PhonesModule } from './phones/phones.module';
     RealtimeModule,
     RecordingsModule,
     PhonesModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

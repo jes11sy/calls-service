@@ -28,9 +28,10 @@ model Call {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   
-  operator        CallcentreOperator @relation(fields: [operatorId], references: [id])
-  phone           Phone?             @relation(fields: [phoneAts], references: [number])
-  avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name])
+  // ✅ FIX #146: Добавлены onDelete для предотвращения orphaned records
+  operator        CallcentreOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  phone           Phone?             @relation(fields: [phoneAts], references: [number], onDelete: SetNull)
+  avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name], onDelete: SetNull)
   
   @@map("calls")
   @@index([city])

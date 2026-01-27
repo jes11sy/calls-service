@@ -46,10 +46,21 @@ export class CallsController {
   @ApiBearerAuth()
   @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR, UserRole.MASTER)
   @ApiOperation({ summary: 'Get calls by order ID (only calls with recordings)' })
-  async getCallsByOrderId(@Param('orderId') orderId: string) {
-    return this.callsService.getCallsByOrderId(+orderId);
+  async getCallsByOrderId(@Param('orderId') orderId: string, @Request() req: any) {
+    return this.callsService.getCallsByOrderId(+orderId, req.user);
   }
 
+  // ✅ FIX: Перенесён ПЕРЕД :id чтобы не перехватывался параметрическим роутом
+  @Get('by-phone/:phone')
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
+  @ApiOperation({ summary: 'Get calls by phone number' })
+  async getCallsByPhone(@Param('phone') phone: string) {
+    return this.callsService.getCallsByPhone(phone);
+  }
+
+  // ✅ FIX: :id должен быть ПОСЛЕДНИМ среди GET роутов, чтобы не перехватывать специфичные пути
   @Get(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
@@ -75,15 +86,6 @@ export class CallsController {
   @ApiOperation({ summary: 'Update call' })
   async updateCall(@Param('id') id: string, @Body() dto: UpdateCallDto) {
     return this.callsService.updateCall(+id, dto);
-  }
-
-  @Get('by-phone/:phone')
-  @UseGuards(CookieJwtAuthGuard, RolesGuard)
-  @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
-  @ApiOperation({ summary: 'Get calls by phone number' })
-  async getCallsByPhone(@Param('phone') phone: string) {
-    return this.callsService.getCallsByPhone(phone);
   }
 
   @Post('initiate-callback')

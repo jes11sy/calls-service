@@ -359,7 +359,7 @@ export class CallsService {
     };
   }
 
-  async getCallsByOrderId(orderId: number) {
+  async getCallsByOrderId(orderId: number, user?: any) {
     // Получаем заказ
     const order = await this.prisma.order.findUnique({
       where: { id: orderId }
@@ -367,6 +367,17 @@ export class CallsService {
 
     if (!order) {
       throw new NotFoundException('Заказ не найден');
+    }
+
+    // ✅ FIX: RBAC проверка доступа к заказу
+    if (user) {
+      if (user.role === 'master' && order.masterId !== user.userId) {
+        throw new ForbiddenException('У вас нет доступа к этому заказу');
+      }
+      
+      if (user.role === 'director' && user.cities && !user.cities.includes(order.city)) {
+        throw new ForbiddenException('Заказ не в вашем городе');
+      }
     }
 
     let calls = [];

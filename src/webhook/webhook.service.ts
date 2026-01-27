@@ -7,6 +7,9 @@ import { RealtimeService } from '../realtime/realtime.service';
 @Injectable()
 export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
+  // ✅ FIX #34: Отслеживание асинхронных задач
+  private pendingTasks: Set<Promise<void>> = new Set();
+  private readonly MAX_CONCURRENT_TASKS = 10; // Лимит параллельных задач
 
   constructor(
     private prisma: PrismaService,
@@ -126,14 +129,14 @@ export class WebhookService {
       const phoneAts = line_number || to?.line_number || to?.number || to;
       const phoneClient = from?.number || from;
 
-      // Сначала ищем или создаем номер телефона АТС
-      let phone = await this.prisma.phone.findUnique({
-        where: { number: phoneAts },
-      });
-
-      // Извлекаем SIP username из to.number
+      // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
       const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
-      const operator = await this.findOperatorBySip(sipUsername);
+      const [phoneResult, operator] = await Promise.all([
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.findOperatorBySip(sipUsername),
+      ]);
+
+      let phone = phoneResult;
 
       if (!operator) {
         this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
@@ -337,22 +340,23 @@ export class WebhookService {
       return { success: true, message: 'Outbound call ignored' };
     }
 
+    // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
-    const operator = await this.findOperatorBySip(sipUsername);
+    const phoneAts = to?.line_number || to?.number || to;
+    const phoneClient = from?.number || from;
+
+    const [operator, phoneResult, existingCall] = await Promise.all([
+      this.findOperatorBySip(sipUsername),
+      this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+      this.prisma.call.findUnique({ where: { callId: call_id } }),
+    ]);
 
     if (!operator) {
       this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
       return { success: true, message: 'Operator not found' };
     }
 
-    // Определяем номер АТС
-    const phoneAts = to?.line_number || to?.number || to;
-    const phoneClient = from?.number || from;
-
-    // Ищем номер телефона АТС
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: phoneAts },
-    });
+    let phone = phoneResult;
 
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator.city || 'Не указан';
@@ -362,11 +366,6 @@ export class WebhookService {
     if (!phone) {
       phone = await this.findOrCreatePhone(phoneAts, city, rk);
     }
-
-    // Проверяем, существует ли звонок
-    const existingCall = await this.prisma.call.findUnique({
-      where: { callId: call_id },
-    });
 
     let call;
     if (existingCall) {
@@ -444,17 +443,16 @@ export class WebhookService {
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
     const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
-    
-    // Определяем оператора СНАЧАЛА для получения города
-    const operator = await this.findOperatorBySip(sipUsername);
-
-    // Создаем или находим номер телефона АТС
     const phoneAts = to?.line_number || to?.number || to;
-    
-    // Сначала ищем существующий phone
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: phoneAts },
-    });
+
+    // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
+    const [operator, phoneResult, existingCall] = await Promise.all([
+      this.findOperatorBySip(sipUsername),
+      this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+      this.prisma.call.findUnique({ where: { callId: call_id } }),
+    ]);
+
+    let phone = phoneResult;
     
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator?.city || 'Неизвестно';
@@ -464,11 +462,6 @@ export class WebhookService {
     if (!phone) {
       phone = await this.findOrCreatePhone(phoneAts, city, rk);
     }
-
-    // Ищем существующий звонок
-    const existingCall = await this.prisma.call.findUnique({
-      where: { callId: call_id },
-    });
 
     let call;
     if (existingCall) {
@@ -754,15 +747,9 @@ export class WebhookService {
 
       this.logger.log(`Found call ID: ${call.id} for recording_id: ${recording_id}`);
 
-      // TODO: Implement proper job queue (Bull/Redis) for delayed processing
-      // For now, process asynchronously without blocking
-      setImmediate(async () => {
-        try {
-          await this.processRecordingDownload(call, recording_id);
-        } catch (error) {
-          this.logger.error(`Async recording processing failed: ${error.message}`);
-        }
-      });
+      // ✅ FIX #34: Используем отслеживаемую асинхронную задачу вместо setImmediate
+      // TODO: Migrate to proper job queue (Bull/Redis) for production
+      const task = this.scheduleRecordingDownload(call, recording_id);
 
       return {
         success: true,
@@ -776,6 +763,43 @@ export class WebhookService {
         message: error.message,
       };
     }
+  }
+
+  /**
+   * ✅ FIX #34: Планирование скачивания записи с отслеживанием
+   * Ограничивает количество параллельных задач и логирует их завершение
+   */
+  private async scheduleRecordingDownload(call: any, recording_id: string): Promise<void> {
+    // Проверяем лимит параллельных задач
+    if (this.pendingTasks.size >= this.MAX_CONCURRENT_TASKS) {
+      this.logger.warn(
+        `Max concurrent tasks reached (${this.MAX_CONCURRENT_TASKS}), waiting for task to complete...`
+      );
+      // Ждём завершения хотя бы одной задачи
+      await Promise.race(this.pendingTasks);
+    }
+
+    // Создаём отслеживаемую задачу
+    const task = (async () => {
+      try {
+        this.logger.log(`Starting recording download for call ${call.callId}, recording ${recording_id}`);
+        await this.processRecordingDownload(call, recording_id);
+        this.logger.log(`✅ Successfully completed recording download for call ${call.callId}`);
+      } catch (error) {
+        this.logger.error(
+          `❌ Failed to download recording for call ${call.callId}: ${error.message}`,
+          error.stack
+        );
+        // TODO: Add retry logic or dead letter queue here
+      } finally {
+        // Удаляем задачу из отслеживания
+        this.pendingTasks.delete(task);
+        this.logger.debug(`Pending tasks: ${this.pendingTasks.size}/${this.MAX_CONCURRENT_TASKS}`);
+      }
+    })();
+
+    // Добавляем в отслеживание
+    this.pendingTasks.add(task);
   }
 
   private async processRecordingDownload(call: any, recording_id: string) {
