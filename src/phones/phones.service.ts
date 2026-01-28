@@ -157,8 +157,11 @@ export class PhonesService {
   async getSources() {
     const phones = await this.prisma.phone.findMany({
       where: {
+        NOT: {
+          avitoName: null,
+        },
         avitoName: {
-          not: null,
+          not: '',
         },
       },
       select: {
@@ -186,8 +189,11 @@ export class PhonesService {
   async getCampaigns() {
     const phones = await this.prisma.phone.findMany({
       where: {
+        NOT: {
+          rk: null,
+        },
         rk: {
-          not: null,
+          not: '',
         },
       },
       select: {
