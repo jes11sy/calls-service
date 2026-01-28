@@ -15,17 +15,30 @@ export class CallsService {
     private realtimeService: RealtimeService,
   ) {}
 
+  /**
+   * Определяет направление звонка по формату phoneClient
+   * Исходящий: phoneClient содержит sip: (например: sip:kovalenko_oksana@vpbx400349703.mangosip.ru)
+   * Входящий: phoneClient - обычный номер телефона
+   */
+  private determineCallDirection(phoneClient: string): 'incoming' | 'outgoing' {
+    if (!phoneClient) return 'incoming';
+    return phoneClient.toLowerCase().includes('sip:') ? 'outgoing' : 'incoming';
+  }
+
   async getCalls(query: any, user: any) {
     const { status, operatorId, startDate, endDate, phone, city } = query;
 
     const where: any = {};
 
-    if (status) {
-      where.status = status;
+    // 🔒 Фильтрация по оператору: operator видит только свои звонки
+    if (user.role === 'operator' || user.role === 'callcentre_operator') {
+      where.operatorId = user.userId;
+    } else if (operatorId) {
+      where.operatorId = +operatorId;
     }
 
-    if (operatorId) {
-      where.operatorId = +operatorId;
+    if (status) {
+      where.status = status;
     }
 
     if (city) {
@@ -99,10 +112,16 @@ export class CallsService {
       take: limit,
     });
 
+    // Добавляем callDirection к каждому звонку
+    const callsWithDirection = calls.map(call => ({
+      ...call,
+      callDirection: this.determineCallDirection(call.phoneClient),
+    }));
+
     return {
       success: true,
       data: {
-        calls,
+        calls: callsWithDirection,
         pagination: {
           total,
           page,
@@ -307,12 +326,15 @@ export class CallsService {
     // Базовые условия фильтрации
     const where: any = {};
 
-    if (status && status !== 'all') {
-      where.status = status;
+    // 🔒 Фильтрация по оператору: operator видит только свои звонки
+    if (user.role === 'operator' || user.role === 'callcentre_operator') {
+      where.operatorId = user.userId;
+    } else if (operatorId) {
+      where.operatorId = +operatorId;
     }
 
-    if (operatorId) {
-      where.operatorId = +operatorId;
+    if (status && status !== 'all') {
+      where.status = status;
     }
 
     if (city) {
@@ -420,7 +442,7 @@ export class CallsService {
       },
     });
 
-    // 4. Группируем звонки по номеру телефона
+    // 4. Группируем звонки по номеру телефона и добавляем callDirection
     const groupedCalls: Record<string, any[]> = {};
     
     // Сначала создаём пустые группы в правильном порядке
@@ -428,10 +450,13 @@ export class CallsService {
       groupedCalls[phone] = [];
     }
     
-    // Затем заполняем группы звонками
+    // Затем заполняем группы звонками с добавлением callDirection
     for (const call of calls) {
       if (groupedCalls[call.phoneClient]) {
-        groupedCalls[call.phoneClient].push(call);
+        groupedCalls[call.phoneClient].push({
+          ...call,
+          callDirection: this.determineCallDirection(call.phoneClient),
+        });
       }
     }
 
