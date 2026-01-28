@@ -41,6 +41,18 @@ export class CallsController {
     return this.callsService.getCallStats(query);
   }
 
+  @Get('grouped')
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.OPERATOR, UserRole.DIRECTOR)
+  @ApiOperation({ 
+    summary: 'Get calls grouped by phone number',
+    description: 'Возвращает звонки, сгруппированные по номеру телефона клиента. Пагинация по группам (10 групп на страницу по умолчанию).'
+  })
+  async getCallsGrouped(@Query() query: GetCallsQueryDto, @Request() req: any) {
+    return this.callsService.getCallsGrouped(query, req.user);
+  }
+
   @Get('order/:orderId')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()

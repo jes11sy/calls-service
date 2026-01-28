@@ -297,6 +297,186 @@ export class CallsService {
     };
   }
 
+  /**
+   * Получение звонков с группировкой по номеру телефона клиента
+   * Пагинация идёт по группам, а не по отдельным звонкам
+   */
+  async getCallsGrouped(query: any, user: any) {
+    const { status, operatorId, startDate, endDate, phone, city, rk, avitoName } = query;
+
+    // Базовые условия фильтрации
+    const where: any = {};
+
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    if (operatorId) {
+      where.operatorId = +operatorId;
+    }
+
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' };
+    }
+
+    if (rk) {
+      where.rk = { contains: rk, mode: 'insensitive' };
+    }
+
+    if (avitoName) {
+      where.avitoName = { contains: avitoName, mode: 'insensitive' };
+    }
+
+    if (phone) {
+      where.phoneClient = { contains: phone };
+    }
+
+    if (startDate || endDate) {
+      where.dateCreate = {};
+      if (startDate) where.dateCreate.gte = new Date(startDate);
+      if (endDate) where.dateCreate.lte = new Date(endDate);
+    }
+
+    // Пагинация по группам
+    const page = query.page ? +query.page : 1;
+    const groupsPerPage = query.limit ? +query.limit : 10; // По умолчанию 10 групп на странице
+    const skip = (page - 1) * groupsPerPage;
+
+    // Сортировка
+    const sortBy = query.sortBy || 'dateCreate';
+    const sortOrder = query.sortOrder || 'desc';
+
+    // 1. Получаем уникальные номера телефонов с последним звонком для сортировки
+    const uniquePhones = await this.prisma.call.groupBy({
+      by: ['phoneClient'],
+      where,
+      _max: {
+        dateCreate: true,
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _max: {
+          dateCreate: sortOrder as 'asc' | 'desc',
+        },
+      },
+    });
+
+    const totalGroups = uniquePhones.length;
+    const totalPages = Math.ceil(totalGroups / groupsPerPage);
+
+    // 2. Берём только нужные группы для текущей страницы
+    const paginatedPhones = uniquePhones.slice(skip, skip + groupsPerPage);
+    const phoneNumbers = paginatedPhones.map(p => p.phoneClient);
+
+    // 3. Получаем все звонки для этих номеров
+    const calls = await this.prisma.call.findMany({
+      where: {
+        ...where,
+        phoneClient: { in: phoneNumbers },
+      },
+      orderBy: { dateCreate: 'desc' },
+      select: {
+        id: true,
+        rk: true,
+        city: true,
+        avitoName: true,
+        phoneClient: true,
+        phoneAts: true,
+        dateCreate: true,
+        status: true,
+        callId: true,
+        duration: true,
+        recordUrl: true,
+        recordingPath: true,
+        recordingProcessedAt: true,
+        recordingEmailSent: true,
+        createdAt: true,
+        updatedAt: true,
+        operator: {
+          select: {
+            id: true,
+            name: true,
+            login: true,
+          },
+        },
+        phone: {
+          select: {
+            id: true,
+            number: true,
+            rk: true,
+            city: true,
+            avitoName: true,
+          },
+        },
+        avito: {
+          select: {
+            id: true,
+            name: true,
+            connectionStatus: true,
+          },
+        },
+      },
+    });
+
+    // 4. Группируем звонки по номеру телефона
+    const groupedCalls: Record<string, any[]> = {};
+    
+    // Сначала создаём пустые группы в правильном порядке
+    for (const phone of phoneNumbers) {
+      groupedCalls[phone] = [];
+    }
+    
+    // Затем заполняем группы звонками
+    for (const call of calls) {
+      if (groupedCalls[call.phoneClient]) {
+        groupedCalls[call.phoneClient].push(call);
+      }
+    }
+
+    // 5. Подсчёт статистики
+    const totalCalls = await this.prisma.call.count({ where });
+    const missedCalls = await this.prisma.call.count({ 
+      where: { ...where, status: 'missed' } 
+    });
+    const answeredCalls = await this.prisma.call.count({ 
+      where: { ...where, status: 'answered' } 
+    });
+
+    // Звонки за сегодня
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCalls = await this.prisma.call.count({
+      where: {
+        ...where,
+        dateCreate: { gte: today },
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        groupedCalls,
+        stats: {
+          totalCalls,
+          totalGroups,
+          missedCalls,
+          answeredCalls,
+          todayCalls,
+        },
+        pagination: {
+          page,
+          limit: groupsPerPage,
+          totalGroups,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      },
+    };
+  }
+
   async getCallStats(query: any) {
     const { startDate, endDate, city } = query;
 
