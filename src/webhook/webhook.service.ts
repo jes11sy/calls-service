@@ -145,11 +145,11 @@ export class WebhookService {
 
       // Определяем город и РК из phone или operator
       const city = phone?.city || operator.city || 'Неизвестно';
-      const rk = phone?.rk || 'MANGO';
+      const rk = phone?.rk || 'Уточнить';
 
       // Создаем phone если не существует
       if (!phone) {
-        phone = await this.findOrCreatePhone(phoneAts, city, rk);
+        // Не создаём автоматически - phone остаётся null если не найден
       }
 
       // Проверяем, существует ли звонок по entry_id в JSON mangoData
@@ -360,11 +360,11 @@ export class WebhookService {
 
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator.city || 'Не указан';
-    const rk = phone?.rk || 'MANGO';
+    const rk = phone?.rk || 'Уточнить';
 
     // Создаем phone если не существует
     if (!phone) {
-      phone = await this.findOrCreatePhone(phoneAts, city, rk);
+      // Не создаём автоматически - phone остаётся null если не найден
     }
 
     let call;
@@ -456,11 +456,11 @@ export class WebhookService {
     
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator?.city || 'Неизвестно';
-    const rk = phone?.rk || 'MANGO';
+    const rk = phone?.rk || 'Уточнить';
     
     // Создаем phone если не существует, с правильными значениями
     if (!phone) {
-      phone = await this.findOrCreatePhone(phoneAts, city, rk);
+      // Не создаём автоматически - phone остаётся null если не найден
     }
 
     let call;
@@ -566,11 +566,11 @@ export class WebhookService {
     
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator?.city || 'Неизвестно';
-    const rk = phone?.rk || 'MANGO';
+    const rk = phone?.rk || 'Уточнить';
     
     // Создаем phone если не существует, с правильными значениями
     if (!phone) {
-      phone = await this.findOrCreatePhone(phoneAts, city, rk);
+      // Не создаём автоматически - phone остаётся null если не найден
     }
 
     // Если нет call_id, не можем обработать звонок
@@ -648,22 +648,19 @@ export class WebhookService {
     }
   }
 
-  private async findOrCreatePhone(phoneNumber: string, city: string = 'Неизвестно', rk: string = 'Неизвестно'): Promise<any> {
+  /**
+   * Ищет номер телефона в таблице phones
+   * НЕ создаёт новые записи - только поиск существующих
+   */
+  private async findPhone(phoneNumber: string): Promise<any> {
     // Если номер не указан, возвращаем null
     if (!phoneNumber || phoneNumber === 'undefined') {
-      this.logger.warn('Phone number is undefined, skipping phone upsert');
+      this.logger.warn('Phone number is undefined, skipping phone lookup');
       return null;
     }
 
-    return this.prisma.phone.upsert({
+    return this.prisma.phone.findUnique({
       where: { number: phoneNumber },
-      update: {},
-      create: {
-        number: phoneNumber,
-        rk,
-        city,
-        avitoName: null,
-      },
     });
   }
 

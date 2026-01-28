@@ -310,9 +310,15 @@ export class CallsService {
       take: 50,
     });
 
+    // Добавляем callDirection к каждому звонку
+    const callsWithDirection = calls.map(call => ({
+      ...call,
+      callDirection: this.determineCallDirection(call.phoneClient),
+    }));
+
     return {
       success: true,
-      data: calls,
+      data: callsWithDirection,
     };
   }
 

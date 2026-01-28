@@ -178,24 +178,10 @@ export class PhonesService {
   }
 
   /**
-   * Получить уникальные РК из таблицы phones
+   * Получить список РК (хардкод)
    */
   async getCampaigns() {
-    const phones = await this.prisma.phone.findMany({
-      select: {
-        rk: true,
-      },
-      distinct: ['rk'],
-      orderBy: {
-        rk: 'asc',
-      },
-    });
-
-    // Фильтруем null и пустые строки на уровне JS
-    const campaigns = phones
-      .map(p => p.rk)
-      .filter((rk): rk is string => rk !== null && rk !== undefined && rk.trim() !== '')
-      .sort((a, b) => a.localeCompare(b, 'ru'));
+    const campaigns = ['Листовка', 'Авито'];
 
     return {
       success: true,
