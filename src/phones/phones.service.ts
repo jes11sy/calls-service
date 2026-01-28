@@ -156,14 +156,6 @@ export class PhonesService {
    */
   async getSources() {
     const phones = await this.prisma.phone.findMany({
-      where: {
-        NOT: {
-          avitoName: null,
-        },
-        avitoName: {
-          not: '',
-        },
-      },
       select: {
         avitoName: true,
       },
@@ -173,9 +165,11 @@ export class PhonesService {
       },
     });
 
+    // Фильтруем null и пустые строки на уровне JS
     const sources = phones
       .map(p => p.avitoName)
-      .filter((name): name is string => name !== null && name.trim() !== '');
+      .filter((name): name is string => name !== null && name !== undefined && name.trim() !== '')
+      .sort((a, b) => a.localeCompare(b, 'ru'));
 
     return {
       success: true,
@@ -188,14 +182,6 @@ export class PhonesService {
    */
   async getCampaigns() {
     const phones = await this.prisma.phone.findMany({
-      where: {
-        NOT: {
-          rk: null,
-        },
-        rk: {
-          not: '',
-        },
-      },
       select: {
         rk: true,
       },
@@ -205,9 +191,11 @@ export class PhonesService {
       },
     });
 
+    // Фильтруем null и пустые строки на уровне JS
     const campaigns = phones
       .map(p => p.rk)
-      .filter((rk): rk is string => rk !== null && rk.trim() !== '');
+      .filter((rk): rk is string => rk !== null && rk !== undefined && rk.trim() !== '')
+      .sort((a, b) => a.localeCompare(b, 'ru'));
 
     return {
       success: true,
