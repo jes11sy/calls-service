@@ -16,9 +16,29 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(private readonly prisma: PrismaService) {}
 
   async catch(exception: unknown, host: ArgumentsHost) {
+    // Проверяем тип контекста - обрабатываем только HTTP
+    const contextType = host.getType();
+    if (contextType !== 'http') {
+      // Для не-HTTP контекстов (WebSocket, RPC) просто логируем
+      this.logger.error(
+        `[calls-service] Non-HTTP exception in ${contextType} context`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+      return;
+    }
+
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+
+    // Проверяем что response валидный
+    if (!response || typeof response.status !== 'function') {
+      this.logger.error(
+        `[calls-service] Invalid response object`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+      return;
+    }
 
     const status =
       exception instanceof HttpException
@@ -46,16 +66,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             errorType,
             errorMessage,
             stackTrace,
-            userId: (request as any).user?.userId || null,
-            userRole: (request as any).user?.role || null,
-            requestUrl: request.url,
-            requestMethod: request.method,
-            ip: request.ip || (request.headers['x-forwarded-for'] as string) || null,
-            userAgent: request.headers['user-agent'] || null,
+            userId: (request as any)?.user?.userId || null,
+            userRole: (request as any)?.user?.role || null,
+            requestUrl: request?.url || 'unknown',
+            requestMethod: request?.method || 'unknown',
+            ip: request?.ip || (request?.headers?.['x-forwarded-for'] as string) || null,
+            userAgent: request?.headers?.['user-agent'] || null,
             metadata: {
-              body: request.body,
-              params: request.params,
-              query: request.query,
+              body: request?.body,
+              params: request?.params,
+              query: request?.query,
             },
           },
         });
@@ -65,7 +85,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     this.logger.error(
-      `[calls-service] ${request.method} ${request.url} - ${status} ${errorMessage}`,
+      `[calls-service] ${request?.method || 'UNKNOWN'} ${request?.url || 'unknown'} - ${status} ${errorMessage}`,
       stackTrace,
     );
 
@@ -73,7 +93,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request?.url || 'unknown',
       message: errorMessage,
     });
   }
