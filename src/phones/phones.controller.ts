@@ -30,6 +30,24 @@ export class PhonesController {
     return this.phonesService.getPhones(search);
   }
 
+  @Get('sources')
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @ApiOperation({ summary: 'Get unique sources (avitoName) from phones' })
+  async getSources() {
+    return this.phonesService.getSources();
+  }
+
+  @Get('campaigns')
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @ApiOperation({ summary: 'Get unique campaigns (rk) from phones' })
+  async getCampaigns() {
+    return this.phonesService.getCampaigns();
+  }
+
   @Get(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()

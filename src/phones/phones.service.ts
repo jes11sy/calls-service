@@ -150,5 +150,63 @@ export class PhonesService {
       message: 'Phone number deleted successfully',
     };
   }
+
+  /**
+   * Получить уникальные источники (avitoName) из таблицы phones
+   */
+  async getSources() {
+    const phones = await this.prisma.phone.findMany({
+      where: {
+        avitoName: {
+          not: null,
+        },
+      },
+      select: {
+        avitoName: true,
+      },
+      distinct: ['avitoName'],
+      orderBy: {
+        avitoName: 'asc',
+      },
+    });
+
+    const sources = phones
+      .map(p => p.avitoName)
+      .filter((name): name is string => name !== null && name.trim() !== '');
+
+    return {
+      success: true,
+      data: sources,
+    };
+  }
+
+  /**
+   * Получить уникальные РК из таблицы phones
+   */
+  async getCampaigns() {
+    const phones = await this.prisma.phone.findMany({
+      where: {
+        rk: {
+          not: null,
+        },
+      },
+      select: {
+        rk: true,
+      },
+      distinct: ['rk'],
+      orderBy: {
+        rk: 'asc',
+      },
+    });
+
+    const campaigns = phones
+      .map(p => p.rk)
+      .filter((rk): rk is string => rk !== null && rk.trim() !== '');
+
+    return {
+      success: true,
+      data: campaigns,
+    };
+  }
 }
 
