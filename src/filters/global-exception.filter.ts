@@ -72,11 +72,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             requestMethod: request?.method || 'unknown',
             ip: request?.ip || (request?.headers?.['x-forwarded-for'] as string) || null,
             userAgent: request?.headers?.['user-agent'] || null,
-            metadata: {
+            metadata: JSON.parse(JSON.stringify({
               body: request?.body ?? null,
               params: request?.params ?? null,
               query: request?.query ?? null,
-            } as Record<string, unknown>,
+            })),
           },
         });
       } catch (dbError) {
