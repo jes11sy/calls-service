@@ -73,10 +73,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             ip: request?.ip || (request?.headers?.['x-forwarded-for'] as string) || null,
             userAgent: request?.headers?.['user-agent'] || null,
             metadata: {
-              body: request?.body,
-              params: request?.params,
-              query: request?.query,
-            },
+              body: request?.body ?? null,
+              params: request?.params ?? null,
+              query: request?.query ?? null,
+            } as Record<string, unknown>,
           },
         });
       } catch (dbError) {
