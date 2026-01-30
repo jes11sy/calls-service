@@ -20,7 +20,6 @@ model Call {
   status               String
   callId               String?   @unique @map("call_id")
   duration             Int?
-  recordUrl            String?   @map("record_url")
   recordingPath        String?   @map("recording_path")
   recordingProcessedAt DateTime? @map("recording_processed_at")
   recordingEmailSent   Boolean   @default(false) @map("recording_email_sent")

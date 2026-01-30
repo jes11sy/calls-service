@@ -1,21 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { MangoService } from '../mango/mango.service';
-import { S3Service } from '../s3/s3.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { RECORDING_QUEUE } from '../queue/queue.module';
+import { RecordingJobData } from '../queue/recording.processor';
 
 @Injectable()
 export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
-  // ✅ FIX #34: Отслеживание асинхронных задач
-  private pendingTasks: Set<Promise<void>> = new Set();
-  private readonly MAX_CONCURRENT_TASKS = 10; // Лимит параллельных задач
 
   constructor(
     private prisma: PrismaService,
     private mangoService: MangoService,
-    private s3Service: S3Service,
     private realtimeService: RealtimeService,
+    @InjectQueue(RECORDING_QUEUE) private recordingQueue: Queue<RecordingJobData>,
   ) {}
 
   async processMangoWebhook(payload: any) {
@@ -37,29 +37,28 @@ export class WebhookService {
         command_id,
       } = payload;
 
-      // Игнорируем callback звонки (инициированные через initiateCallback)
-      if (command_id && command_id.startsWith('callback_')) {
-        this.logger.log(`Ignoring callback call ${call_id}, command_id: ${command_id}`);
-        return { success: true, message: 'Callback call ignored' };
-      }
-
-      // Игнорируем звонки в IVR
+      // Игнорируем звонки в IVR (не дошедшие до оператора)
       if (location === 'ivr') {
         this.logger.log(`Ignoring IVR call ${call_id}`);
         return { success: true, message: 'IVR call ignored' };
       }
 
+      // Определяем направление звонка
+      const isCallback = command_id && command_id.startsWith('callback_');
+      const isOutbound = this.isOutboundCall(from, to);
+      const callDirection = isCallback ? 'callback' : (isOutbound ? 'outbound' : 'inbound');
+
       // Обрабатываем события по call_state
       if (call_state === 'Appeared') {
-        return this.handleCallAppeared(payload);
+        return this.handleCallAppeared(payload, callDirection);
       } else if (call_state === 'Connected') {
-        return this.handleCallConnected(payload);
+        return this.handleCallConnected(payload, callDirection);
       } else if (call_state === 'Disconnected') {
-        return this.handleCallDisconnected(payload);
+        return this.handleCallDisconnected(payload, callDirection);
       }
 
       // Fallback для старого формата
-      return this.handleLegacyFormat(payload);
+      return this.handleLegacyFormat(payload, callDirection);
     } catch (error) {
       this.logger.error(`Error processing Mango webhook: ${error.message}`, error.stack);
       return {
@@ -93,17 +92,13 @@ export class WebhookService {
         return { success: true, message: 'Entry ID missing' };
       }
 
-      // Игнорируем callback звонки
-      if (command_id && command_id.startsWith('callback_')) {
-        this.logger.log(`Ignoring callback call: ${entry_id}, command_id: ${command_id}`);
-        return { success: true, message: 'Callback call ignored' };
-      }
-
-      // Игнорируем исходящие звонки (call_direction = 2)
-      if (call_direction === 2) {
-        this.logger.log(`Ignoring outbound call: ${entry_id}`);
-        return { success: true, message: 'Outbound call ignored' };
-      }
+      // Определяем направление звонка
+      const isCallback = command_id && command_id.startsWith('callback_');
+      // call_direction: 1 = входящий, 2 = исходящий
+      const isOutbound = call_direction === 2;
+      const callDirectionType = isCallback ? 'callback' : (isOutbound ? 'outbound' : 'inbound');
+      
+      this.logger.log(`Processing ${callDirectionType} call: ${entry_id}`);
 
       // Определяем статус звонка и длительность
       let status = 'missed';
@@ -129,22 +124,36 @@ export class WebhookService {
       const phoneAts = line_number || to?.line_number || to?.number || to;
       const phoneClient = from?.number || from;
 
-      // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
-      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
-      const [phoneResult, operator] = await Promise.all([
-        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
-        this.findOperatorBySip(sipUsername),
-      ]);
+      let operator;
+      let phone;
 
-      let phone = phoneResult;
+      if (isCallback) {
+        // Для callback-звонков используем оператора "Система" (ID = 1)
+        const [phoneResult, systemOperator] = await Promise.all([
+          this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+          this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
+        ]);
+        phone = phoneResult;
+        operator = systemOperator;
+        this.logger.log(`Callback call - using System operator (ID: 1)`);
+      } else {
+        // Для обычных звонков ищем по SIP
+        const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+        const [phoneResult, foundOperator] = await Promise.all([
+          this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+          this.findOperatorBySip(sipUsername),
+        ]);
+        phone = phoneResult;
+        operator = foundOperator;
 
-      if (!operator) {
-        this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
-        return { success: true, message: 'Operator not found' };
+        if (!operator) {
+          this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
+          return { success: true, message: 'Operator not found' };
+        }
       }
 
       // Определяем город и РК из phone или operator
-      const city = phone?.city || operator.city || 'Неизвестно';
+      const city = phone?.city || operator?.city || 'Неизвестно';
       const rk = phone?.rk || 'Уточнить';
 
       // Создаем phone если не существует
@@ -210,7 +219,7 @@ export class WebhookService {
           },
         });
         
-        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, avitoName: ${phone?.avitoName || 'null'}`);
+        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, direction: ${callDirectionType}, avitoName: ${phone?.avitoName || 'null'}`);
       } else {
         isNewCall = true;
         // Создаем новый звонок
@@ -272,22 +281,10 @@ export class WebhookService {
     }
   }
 
-  private async handleCallAppeared(payload: any) {
+  private async handleCallAppeared(payload: any, callDirection: string = 'inbound') {
     const { call_id, from, to, create_time, timestamp, command_id } = payload;
 
-    this.logger.log(`Call appeared: ${call_id}`);
-
-    // Игнорируем callback звонки
-    if (command_id && command_id.startsWith('callback_')) {
-      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
-      return { success: true, message: 'Callback call ignored' };
-    }
-
-    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
-    if (this.isOutboundCall(from, to)) {
-      this.logger.log(`Ignoring outbound call: ${call_id}`);
-      return { success: true, message: 'Outbound call ignored' };
-    }
+    this.logger.log(`Call appeared: ${call_id}, direction: ${callDirection}`);
 
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
@@ -307,7 +304,7 @@ export class WebhookService {
         data: {
           phoneClient: from?.number || from,
           phoneAts: phoneAts,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
         },
       });
     }
@@ -318,7 +315,7 @@ export class WebhookService {
     };
   }
 
-  private async handleCallConnected(payload: any) {
+  private async handleCallConnected(payload: any, callDirection: string = 'inbound') {
     const { call_id, from, to, answer_time, create_time, timestamp, command_id } = payload;
 
     if (!call_id) {
@@ -326,40 +323,46 @@ export class WebhookService {
       return { success: true, message: 'Call ID missing' };
     }
 
-    this.logger.log(`Call connected: ${call_id}`);
+    this.logger.log(`Call connected: ${call_id}, direction: ${callDirection}`);
 
-    // Игнорируем callback звонки
-    if (command_id && command_id.startsWith('callback_')) {
-      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
-      return { success: true, message: 'Callback call ignored' };
-    }
-
-    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
-    if (this.isOutboundCall(from, to)) {
-      this.logger.log(`Ignoring outbound call: ${call_id}`);
-      return { success: true, message: 'Outbound call ignored' };
-    }
-
-    // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
-    const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+    const isCallback = callDirection === 'callback';
     const phoneAts = to?.line_number || to?.number || to;
     const phoneClient = from?.number || from;
 
-    const [operator, phoneResult, existingCall] = await Promise.all([
-      this.findOperatorBySip(sipUsername),
-      this.prisma.phone.findUnique({ where: { number: phoneAts } }),
-      this.prisma.call.findUnique({ where: { callId: call_id } }),
-    ]);
+    let operator;
+    let phone;
+    let existingCall;
 
-    if (!operator) {
-      this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
-      return { success: true, message: 'Operator not found' };
+    if (isCallback) {
+      // Для callback-звонков используем оператора "Система" (ID = 1)
+      const [phoneResult, systemOperator, call] = await Promise.all([
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
+        this.prisma.call.findUnique({ where: { callId: call_id } }),
+      ]);
+      phone = phoneResult;
+      operator = systemOperator;
+      existingCall = call;
+    } else {
+      // Для обычных звонков ищем по SIP
+      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+      const [foundOperator, phoneResult, call] = await Promise.all([
+        this.findOperatorBySip(sipUsername),
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.prisma.call.findUnique({ where: { callId: call_id } }),
+      ]);
+      operator = foundOperator;
+      phone = phoneResult;
+      existingCall = call;
+
+      if (!operator) {
+        this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
+        return { success: true, message: 'Operator not found' };
+      }
     }
 
-    let phone = phoneResult;
-
     // Определяем город и РК из phone или operator
-    const city = phone?.city || operator.city || 'Не указан';
+    const city = phone?.city || operator?.city || 'Не указан';
     const rk = phone?.rk || 'Уточнить';
 
     // Создаем phone если не существует
@@ -375,7 +378,7 @@ export class WebhookService {
         data: {
           status: 'answered',
           operatorId: operator.id,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           mangoData: payload,
         },
       });
@@ -388,7 +391,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient,
           phoneAts: phoneAts,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
@@ -418,7 +421,7 @@ export class WebhookService {
     };
   }
 
-  private async handleCallDisconnected(payload: any) {
+  private async handleCallDisconnected(payload: any, callDirection: string = 'inbound') {
     const { call_id, from, to, entry_id, disconnect_reason, create_time, answer_time, end_time, timestamp, command_id } = payload;
 
     if (!call_id) {
@@ -426,42 +429,43 @@ export class WebhookService {
       return { success: true, message: 'Call ID missing' };
     }
 
-    this.logger.log(`Call disconnected: ${call_id}, reason: ${disconnect_reason}`);
-
-    // Игнорируем callback звонки
-    if (command_id && command_id.startsWith('callback_')) {
-      this.logger.log(`Ignoring callback call: ${call_id}, command_id: ${command_id}`);
-      return { success: true, message: 'Callback call ignored' };
-    }
-
-    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
-    if (this.isOutboundCall(from, to)) {
-      this.logger.log(`Ignoring outbound call: ${call_id}`);
-      return { success: true, message: 'Outbound call ignored' };
-    }
+    this.logger.log(`Call disconnected: ${call_id}, reason: ${disconnect_reason}, direction: ${callDirection}`);
 
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
-    const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+    const isCallback = callDirection === 'callback';
     const phoneAts = to?.line_number || to?.number || to;
 
-    // ✅ FIX: Параллельное выполнение независимых запросов (было последовательно)
-    const [operator, phoneResult, existingCall] = await Promise.all([
-      this.findOperatorBySip(sipUsername),
-      this.prisma.phone.findUnique({ where: { number: phoneAts } }),
-      this.prisma.call.findUnique({ where: { callId: call_id } }),
-    ]);
+    let operator;
+    let phone;
+    let existingCall;
 
-    let phone = phoneResult;
+    if (isCallback) {
+      // Для callback-звонков используем оператора "Система" (ID = 1)
+      const [phoneResult, systemOperator, call] = await Promise.all([
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
+        this.prisma.call.findUnique({ where: { callId: call_id } }),
+      ]);
+      phone = phoneResult;
+      operator = systemOperator;
+      existingCall = call;
+    } else {
+      // Для обычных звонков ищем по SIP
+      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+      const [foundOperator, phoneResult, call] = await Promise.all([
+        this.findOperatorBySip(sipUsername),
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.prisma.call.findUnique({ where: { callId: call_id } }),
+      ]);
+      operator = foundOperator;
+      phone = phoneResult;
+      existingCall = call;
+    }
     
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator?.city || 'Неизвестно';
     const rk = phone?.rk || 'Уточнить';
-    
-    // Создаем phone если не существует, с правильными значениями
-    if (!phone) {
-      // Не создаём автоматически - phone остаётся null если не найден
-    }
 
     let call;
     if (existingCall) {
@@ -471,7 +475,7 @@ export class WebhookService {
         data: {
           status,
           duration,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           mangoData: payload,
         },
         include: {
@@ -492,7 +496,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient: from?.number || from,
           phoneAts: phoneAts,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           dateCreate: new Date(create_time || timestamp * 1000),
           status,
           duration,
@@ -523,7 +527,7 @@ export class WebhookService {
     };
   }
 
-  private async handleLegacyFormat(payload: any) {
+  private async handleLegacyFormat(payload: any, callDirection: string = 'inbound') {
     const {
       call_id,
       from,
@@ -538,40 +542,39 @@ export class WebhookService {
       end_time,
     } = payload;
 
-    // Игнорируем callback звонки
-    if (command_id && command_id.startsWith('callback_')) {
-      this.logger.log(`Ignoring callback call (legacy): ${call_id || 'unknown'}, command_id: ${command_id}`);
-      return { success: true, message: 'Callback call ignored' };
-    }
-
-    // Игнорируем исходящие звонки (from содержит SIP - это сотрудник звонит клиенту)
-    if (this.isOutboundCall(from, to)) {
-      this.logger.log(`Ignoring outbound call (legacy): ${call_id || 'unknown'}`);
-      return { success: true, message: 'Outbound call ignored' };
-    }
-
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
-    const sipUsername = this.mangoService.extractSipUsername(to);
-    const operator = await this.findOperatorBySip(sipUsername);
+    const isCallback = callDirection === 'callback';
 
     // Создаем или находим номер телефона АТС
     const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
     const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
     
-    // Сначала ищем существующий phone
-    let phone = await this.prisma.phone.findUnique({
-      where: { number: phoneAts },
-    });
+    let operator;
+    let phone;
+
+    if (isCallback) {
+      // Для callback-звонков используем оператора "Система" (ID = 1)
+      const [phoneResult, systemOperator] = await Promise.all([
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
+      ]);
+      phone = phoneResult;
+      operator = systemOperator;
+    } else {
+      // Для обычных звонков ищем по SIP
+      const sipUsername = this.mangoService.extractSipUsername(to);
+      const [phoneResult, foundOperator] = await Promise.all([
+        this.prisma.phone.findUnique({ where: { number: phoneAts } }),
+        this.findOperatorBySip(sipUsername),
+      ]);
+      phone = phoneResult;
+      operator = foundOperator;
+    }
     
     // Определяем город и РК из phone или operator
     const city = phone?.city || operator?.city || 'Неизвестно';
     const rk = phone?.rk || 'Уточнить';
-    
-    // Создаем phone если не существует, с правильными значениями
-    if (!phone) {
-      // Не создаём автоматически - phone остаётся null если не найден
-    }
 
     // Если нет call_id, не можем обработать звонок
     if (!call_id) {
@@ -591,7 +594,7 @@ export class WebhookService {
           status,
           duration,
           phoneAts,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           dateCreate: new Date(create_time || timestamp * 1000),
           mangoData: payload,
         },
@@ -604,7 +607,7 @@ export class WebhookService {
           callId: call_id,
           phoneClient,
           phoneAts,
-          avitoName: phone?.avitoName || null, // Берем avitoName из phone
+          avitoName: phone?.avitoName || null,
           dateCreate: new Date(create_time || timestamp * 1000),
           duration,
           status,
@@ -614,7 +617,7 @@ export class WebhookService {
       });
     }
 
-    this.logger.log(`Legacy call processed: ${call_id}, status: ${status}`);
+    this.logger.log(`Legacy call processed: ${call_id}, status: ${status}, direction: ${callDirection}`);
 
     return {
       success: true,
@@ -718,12 +721,10 @@ export class WebhookService {
       let call;
       
       if (call_id) {
-        // Событие "Completed" - есть call_id
         call = await this.prisma.call.findFirst({
           where: { callId: call_id },
         });
       } else if (entry_id) {
-        // Событие "record/added" - только entry_id
         call = await this.prisma.call.findFirst({
           where: {
             mangoData: {
@@ -744,9 +745,21 @@ export class WebhookService {
 
       this.logger.log(`Found call ID: ${call.id} for recording_id: ${recording_id}`);
 
-      // ✅ FIX #34: Используем отслеживаемую асинхронную задачу вместо setImmediate
-      // TODO: Migrate to proper job queue (Bull/Redis) for production
-      const task = this.scheduleRecordingDownload(call, recording_id);
+      // Добавляем задачу в очередь Redis (с задержкой 5 секунд чтобы Mango подготовил файл)
+      await this.recordingQueue.add(
+        'download',
+        {
+          callId: call.id,
+          callIdMango: call.callId,
+          recordingId: recording_id,
+        },
+        {
+          delay: 5000, // 5 секунд задержка
+          jobId: `recording-${call.id}-${recording_id}`, // Дедупликация
+        }
+      );
+
+      this.logger.log(`📥 Recording job queued for call ${call.id}`);
 
       return {
         success: true,
@@ -760,83 +773,6 @@ export class WebhookService {
         message: error.message,
       };
     }
-  }
-
-  /**
-   * ✅ FIX #34: Планирование скачивания записи с отслеживанием
-   * Ограничивает количество параллельных задач и логирует их завершение
-   */
-  private async scheduleRecordingDownload(call: any, recording_id: string): Promise<void> {
-    // Проверяем лимит параллельных задач
-    if (this.pendingTasks.size >= this.MAX_CONCURRENT_TASKS) {
-      this.logger.warn(
-        `Max concurrent tasks reached (${this.MAX_CONCURRENT_TASKS}), waiting for task to complete...`
-      );
-      // Ждём завершения хотя бы одной задачи
-      await Promise.race(this.pendingTasks);
-    }
-
-    // Создаём отслеживаемую задачу
-    const task = (async () => {
-      try {
-        this.logger.log(`Starting recording download for call ${call.callId}, recording ${recording_id}`);
-        await this.processRecordingDownload(call, recording_id);
-        this.logger.log(`✅ Successfully completed recording download for call ${call.callId}`);
-      } catch (error) {
-        this.logger.error(
-          `❌ Failed to download recording for call ${call.callId}: ${error.message}`,
-          error.stack
-        );
-        // TODO: Add retry logic or dead letter queue here
-      } finally {
-        // Удаляем задачу из отслеживания
-        this.pendingTasks.delete(task);
-        this.logger.debug(`Pending tasks: ${this.pendingTasks.size}/${this.MAX_CONCURRENT_TASKS}`);
-      }
-    })();
-
-    // Добавляем в отслеживание
-    this.pendingTasks.add(task);
-  }
-
-  private async processRecordingDownload(call: any, recording_id: string) {
-    // Ждем 5 секунд (Mango обрабатывает файл) но не блокируем event loop
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    if (!this.mangoService.isConfigured()) {
-      this.logger.warn('Mango API not configured - cannot download recording');
-      throw new Error('Mango API not configured');
-    }
-
-    // Скачиваем запись
-    const buffer = await this.mangoService.downloadRecording(recording_id);
-
-    // Загружаем в S3 если настроено
-    if (!this.s3Service.isConfigured()) {
-      this.logger.warn('S3 not configured - recording not uploaded');
-      return;
-    }
-
-    const filename = `${call.callId}_${Date.now()}.mp3`;
-    const s3Key = await this.s3Service.uploadRecording(filename, buffer);
-
-    // Обновляем звонок
-    await this.prisma.call.update({
-      where: { id: call.id },
-      data: {
-        recordUrl: `s3://${s3Key}`,
-        recordingPath: s3Key,
-        recordingProcessedAt: new Date(),
-      },
-    });
-
-    this.logger.log(`Recording uploaded to S3: ${s3Key}`);
-
-    // Broadcast обновления
-    await this.realtimeService.broadcastCallUpdated(
-      { ...call, recordUrl: `s3://${s3Key}`, recordingPath: s3Key, recordingProcessedAt: new Date() },
-      ['operators'],
-    );
   }
 }
 

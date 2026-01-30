@@ -12,6 +12,7 @@ import { S3Module } from './s3/s3.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RecordingsModule } from './recordings/recordings.module';
 import { PhonesModule } from './phones/phones.module';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { PhonesModule } from './phones/phones.module';
     RealtimeModule,
     RecordingsModule,
     PhonesModule,
+    QueueModule,
   ],
   providers: [
     {
