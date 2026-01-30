@@ -120,9 +120,11 @@ export class WebhookService {
         status = 'answered';
       }
 
-      // Определяем номер АТС
-      const phoneAts = line_number || to?.line_number || to?.number || to;
-      const phoneClient = from?.number || from;
+      // Определяем номера в зависимости от направления звонка
+      // Для исходящих (call_direction=2): оператор в from, клиент в to
+      // Для входящих (call_direction=1): клиент в from, оператор в to
+      const phoneAts = line_number || to?.line_number || from?.line_number;
+      const phoneClient = isOutbound ? (to?.number || to) : (from?.number || from);
 
       let operator;
       let phone;
@@ -137,8 +139,14 @@ export class WebhookService {
         operator = systemOperator;
         this.logger.log(`Callback call - using System operator (ID: 1)`);
       } else {
-        // Для обычных звонков ищем по SIP
-        const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+        // Определяем откуда брать SIP-адрес оператора
+        // Для исходящих: оператор в from.number (sip:...)
+        // Для входящих: оператор в to.number (sip:...)
+        const operatorSipSource = isOutbound ? (from?.number || from) : (to?.number || to);
+        const sipUsername = this.mangoService.extractSipUsername(operatorSipSource);
+        
+        this.logger.log(`Looking for operator by SIP: ${sipUsername} (source: ${isOutbound ? 'from' : 'to'})`);
+        
         const [phoneResult, foundOperator] = await Promise.all([
           this.prisma.phone.findUnique({ where: { number: phoneAts } }),
           this.findOperatorBySip(sipUsername),
@@ -326,8 +334,12 @@ export class WebhookService {
     this.logger.log(`Call connected: ${call_id}, direction: ${callDirection}`);
 
     const isCallback = callDirection === 'callback';
-    const phoneAts = to?.line_number || to?.number || to;
-    const phoneClient = from?.number || from;
+    const isOutbound = callDirection === 'outbound';
+    
+    // Определяем номер АТС (линии)
+    const phoneAts = to?.line_number || from?.line_number || to?.number || to;
+    // Для исходящих: клиент в to, для входящих: клиент в from
+    const phoneClient = isOutbound ? (to?.number || to) : (from?.number || from);
 
     let operator;
     let phone;
@@ -344,8 +356,14 @@ export class WebhookService {
       operator = systemOperator;
       existingCall = call;
     } else {
-      // Для обычных звонков ищем по SIP
-      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+      // Определяем откуда брать SIP-адрес оператора
+      // Для исходящих: оператор в from.number (sip:...)
+      // Для входящих: оператор в to.number (sip:...)
+      const operatorSipSource = isOutbound ? (from?.number || from) : (to?.number || to);
+      const sipUsername = this.mangoService.extractSipUsername(operatorSipSource);
+      
+      this.logger.log(`Looking for operator by SIP: ${sipUsername} (source: ${isOutbound ? 'from' : 'to'})`);
+      
       const [foundOperator, phoneResult, call] = await Promise.all([
         this.findOperatorBySip(sipUsername),
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
@@ -434,7 +452,12 @@ export class WebhookService {
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
     const isCallback = callDirection === 'callback';
-    const phoneAts = to?.line_number || to?.number || to;
+    const isOutbound = callDirection === 'outbound';
+    
+    // Определяем номер АТС (линии)
+    const phoneAts = to?.line_number || from?.line_number || to?.number || to;
+    // Для исходящих: клиент в to, для входящих: клиент в from
+    const phoneClient = isOutbound ? (to?.number || to) : (from?.number || from);
 
     let operator;
     let phone;
@@ -451,8 +474,14 @@ export class WebhookService {
       operator = systemOperator;
       existingCall = call;
     } else {
-      // Для обычных звонков ищем по SIP
-      const sipUsername = this.mangoService.extractSipUsername(to?.number || to);
+      // Определяем откуда брать SIP-адрес оператора
+      // Для исходящих: оператор в from.number (sip:...)
+      // Для входящих: оператор в to.number (sip:...)
+      const operatorSipSource = isOutbound ? (from?.number || from) : (to?.number || to);
+      const sipUsername = this.mangoService.extractSipUsername(operatorSipSource);
+      
+      this.logger.log(`Looking for operator by SIP: ${sipUsername} (source: ${isOutbound ? 'from' : 'to'})`);
+      
       const [foundOperator, phoneResult, call] = await Promise.all([
         this.findOperatorBySip(sipUsername),
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
@@ -494,7 +523,7 @@ export class WebhookService {
           rk,
           city,
           callId: call_id,
-          phoneClient: from?.number || from,
+          phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
           dateCreate: new Date(create_time || timestamp * 1000),
@@ -545,10 +574,17 @@ export class WebhookService {
     const status = this.mangoService.determineCallStatus(payload);
     const duration = this.mangoService.calculateDuration(payload);
     const isCallback = callDirection === 'callback';
+    const isOutbound = callDirection === 'outbound';
 
-    // Создаем или находим номер телефона АТС
-    const phoneAts = typeof to === 'object' ? (to?.line_number || to?.number || to) : to;
-    const phoneClient = typeof from === 'object' ? (from?.number || from) : from;
+    // Определяем номер АТС (линии)
+    const phoneAts = typeof to === 'object' 
+      ? (to?.line_number || from?.line_number || to?.number) 
+      : (typeof from === 'object' ? from?.line_number : to);
+    
+    // Для исходящих: клиент в to, для входящих: клиент в from
+    const phoneClient = isOutbound 
+      ? (typeof to === 'object' ? (to?.number || to) : to)
+      : (typeof from === 'object' ? (from?.number || from) : from);
     
     let operator;
     let phone;
@@ -562,8 +598,14 @@ export class WebhookService {
       phone = phoneResult;
       operator = systemOperator;
     } else {
-      // Для обычных звонков ищем по SIP
-      const sipUsername = this.mangoService.extractSipUsername(to);
+      // Определяем откуда брать SIP-адрес оператора
+      const operatorSipSource = isOutbound 
+        ? (typeof from === 'object' ? (from?.number || from) : from)
+        : (typeof to === 'object' ? (to?.number || to) : to);
+      const sipUsername = this.mangoService.extractSipUsername(operatorSipSource);
+      
+      this.logger.log(`Legacy format - looking for operator by SIP: ${sipUsername}`);
+      
       const [phoneResult, foundOperator] = await Promise.all([
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
         this.findOperatorBySip(sipUsername),
@@ -628,23 +670,41 @@ export class WebhookService {
 
   private async findOperatorBySip(sipUsername: string) {
     try {
-      // Ищем оператора по SIP-адресу
-      const operator = await this.prisma.callcentreOperator.findFirst({
+      // Если это обычный телефонный номер (не SIP), сразу возвращаем null
+      // Телефонные номера обычно 10-11 цифр и начинаются с 7 или 8
+      const cleanNumber = sipUsername?.replace(/\D/g, '');
+      if (cleanNumber && cleanNumber.length >= 10 && (cleanNumber.startsWith('7') || cleanNumber.startsWith('8'))) {
+        this.logger.warn(`Skipping phone number lookup as SIP: ${sipUsername} (this is a phone number, not SIP)`);
+        return null;
+      }
+
+      if (!sipUsername || sipUsername === 'undefined') {
+        this.logger.warn('SIP username is empty or undefined');
+        return null;
+      }
+
+      // Ищем оператора по SIP-адресу (точное совпадение)
+      let operator = await this.prisma.callcentreOperator.findFirst({
         where: { sipAddress: sipUsername },
       });
+
+      // Если не нашли, попробуем найти по частичному совпадению
+      // Например, в базе "krekotneva", а в вебхуке приходит "krekotneva@vpbx..."
+      if (!operator && sipUsername.includes('@')) {
+        const localPart = sipUsername.split('@')[0];
+        operator = await this.prisma.callcentreOperator.findFirst({
+          where: { sipAddress: localPart },
+        });
+      }
 
       if (operator) {
         this.logger.log(`Found operator by SIP: ${operator.name} (${operator.id})`);
         return operator;
       }
 
-      // Fallback - используем оператора с ID = 1
-      this.logger.warn(`Operator not found for SIP: ${sipUsername}, using fallback`);
-      const fallbackOperator = await this.prisma.callcentreOperator.findUnique({
-        where: { id: 1 },
-      });
-
-      return fallbackOperator;
+      // Не нашли — возвращаем null (не используем fallback для обычных звонков)
+      this.logger.warn(`Operator not found for SIP: ${sipUsername}`);
+      return null;
     } catch (error) {
       this.logger.error(`Error finding operator: ${error.message}`);
       return null;

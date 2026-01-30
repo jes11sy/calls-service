@@ -48,6 +48,15 @@ export class PhonesController {
     return this.phonesService.getCampaigns();
   }
 
+  @Get('cities')
+  @UseGuards(CookieJwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @ApiOperation({ summary: 'Get unique cities from phones' })
+  async getCities() {
+    return this.phonesService.getCities();
+  }
+
   @Get(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()

@@ -188,5 +188,30 @@ export class PhonesService {
       data: campaigns,
     };
   }
+
+  /**
+   * Получить уникальные города из таблицы phones
+   */
+  async getCities() {
+    const phones = await this.prisma.phone.findMany({
+      select: {
+        city: true,
+      },
+      distinct: ['city'],
+      orderBy: {
+        city: 'asc',
+      },
+    });
+
+    const cities = phones
+      .map(p => p.city)
+      .filter((city): city is string => city !== null && city !== undefined && city.trim() !== '')
+      .sort((a, b) => a.localeCompare(b, 'ru'));
+
+    return {
+      success: true,
+      data: cities,
+    };
+  }
 }
 
