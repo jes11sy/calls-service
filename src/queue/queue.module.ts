@@ -5,8 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { MangoModule } from '../mango/mango.module';
 import { S3Module } from '../s3/s3.module';
 import { RealtimeModule } from '../realtime/realtime.module';
-
-export const RECORDING_QUEUE = 'recording-download';
+import { RECORDING_QUEUE } from './constants';
 
 @Module({
   imports: [

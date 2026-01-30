@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { MangoService } from '../mango/mango.service';
 import { RealtimeService } from '../realtime/realtime.service';
-import { RECORDING_QUEUE } from '../queue/queue.module';
+import { RECORDING_QUEUE } from '../queue/constants';
 import { RecordingJobData } from '../queue/recording.processor';
 
 @Injectable()

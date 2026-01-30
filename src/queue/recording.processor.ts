@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MangoService } from '../mango/mango.service';
 import { S3Service } from '../s3/s3.service';
 import { RealtimeService } from '../realtime/realtime.service';
-import { RECORDING_QUEUE } from './queue.module';
+import { RECORDING_QUEUE } from './constants';
 
 export interface RecordingJobData {
   callId: number;
