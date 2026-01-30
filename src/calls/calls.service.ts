@@ -30,9 +30,9 @@ export class CallsService {
 
     const where: any = {};
 
-    // 🔒 Фильтрация по оператору: operator видит только свои звонки
+    // 🔒 Фильтрация по оператору: operator видит свои звонки + звонки "Система" (ID=1, callback-звонки)
     if (user.role === 'operator' || user.role === 'callcentre_operator') {
-      where.operatorId = user.userId;
+      where.operatorId = { in: [user.userId, 1] };
     } else if (operatorId) {
       where.operatorId = +operatorId;
     }
@@ -332,9 +332,9 @@ export class CallsService {
     // Базовые условия фильтрации
     const where: any = {};
 
-    // 🔒 Фильтрация по оператору: operator видит только свои звонки
+    // 🔒 Фильтрация по оператору: operator видит свои звонки + звонки "Система" (ID=1, callback-звонки)
     if (user.role === 'operator' || user.role === 'callcentre_operator') {
-      where.operatorId = user.userId;
+      where.operatorId = { in: [user.userId, 1] };
     } else if (operatorId) {
       where.operatorId = +operatorId;
     }
