@@ -57,19 +57,19 @@ export class WebhookService {
       }
 
       // Игнорируем "дозвоны" после callback - входящие звонки от того же клиента
-      // в течение 10 секунд после callback на тот же номер АТС
+      // в течение 30 секунд после callback на тот же номер АТС
       if (callDirection === 'inbound') {
         const phoneClient = from?.number || from;
         const phoneAts = to?.line_number || from?.line_number;
         
         if (phoneClient && phoneAts) {
-          const tenSecondsAgo = new Date(Date.now() - 10000);
+          const thirtySecondsAgo = new Date(Date.now() - 30000);
           const recentCallback = await this.prisma.call.findFirst({
             where: {
               phoneClient,
               phoneAts,
               callDirection: 'callback',
-              createdAt: { gte: tenSecondsAgo },
+              createdAt: { gte: thirtySecondsAgo },
             },
             orderBy: { createdAt: 'desc' },
           });
@@ -155,19 +155,19 @@ export class WebhookService {
       this.logger.log(`Processing ${callDirectionType} call: ${entry_id}`);
 
       // Игнорируем "дозвоны" после callback - входящие звонки от того же клиента
-      // в течение 10 секунд после callback на тот же номер АТС
+      // в течение 30 секунд после callback на тот же номер АТС
       if (callDirectionType === 'inbound' && !existingCallForDirection) {
         const phoneClient = from?.number || from;
         const phoneAts = line_number || to?.line_number || from?.line_number;
         
         if (phoneClient && phoneAts) {
-          const tenSecondsAgo = new Date(Date.now() - 10000);
+          const thirtySecondsAgo = new Date(Date.now() - 30000);
           const recentCallback = await this.prisma.call.findFirst({
             where: {
               phoneClient,
               phoneAts,
               callDirection: 'callback',
-              createdAt: { gte: tenSecondsAgo },
+              createdAt: { gte: thirtySecondsAgo },
             },
             orderBy: { createdAt: 'desc' },
           });
@@ -698,34 +698,71 @@ export class WebhookService {
       this.logger.log(`Updated call ${existingCall.id} with callId: ${primaryCallId}`);
     } else {
       // Создаем звонок при завершении (если не был создан раньше)
-      call = await this.prisma.call.create({
-        data: {
-          rk,
-          city,
-          callDirection, // inbound | outbound | callback
-          callId: primaryCallId, // Используем entry_id для связи с Summary
-          phoneClient,
-          phoneAts: phoneAts,
-          avitoName: phone?.avitoName || null,
-          status,
-          duration,
-          operatorId: operator?.id || 1, // Fallback to operator 1
-          mangoData: payload,
-          ...(masterId && { masterId }), // Добавляем masterId только если есть
-        },
-        include: {
-          operator: {
-            select: {
-              id: true,
-              name: true,
+      try {
+        call = await this.prisma.call.create({
+          data: {
+            rk,
+            city,
+            callDirection, // inbound | outbound | callback
+            callId: primaryCallId, // Используем entry_id для связи с Summary
+            phoneClient,
+            phoneAts: phoneAts,
+            avitoName: phone?.avitoName || null,
+            status,
+            duration,
+            operatorId: operator?.id || 1, // Fallback to operator 1
+            mangoData: payload,
+            ...(masterId && { masterId }), // Добавляем masterId только если есть
+          },
+          include: {
+            operator: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      });
-      this.logger.log(`Created new call ${call.id} with callId: ${primaryCallId}`);
+        });
+        this.logger.log(`Created new call ${call.id} with callId: ${primaryCallId}`);
 
-      // Broadcast нового звонка
-      await this.realtimeService.broadcastNewCall(call, ['operators']);
+        // Broadcast нового звонка
+        await this.realtimeService.broadcastNewCall(call, ['operators']);
+      } catch (createError: any) {
+        // Обработка race condition - если запись уже создана другим событием
+        if (createError.code === 'P2002') {
+          this.logger.log(`Race condition in Disconnected, call already exists with callId: ${primaryCallId}`);
+          // Повторно ищем и обновляем
+          const existingByCallId = await this.prisma.call.findUnique({
+            where: { callId: primaryCallId },
+          });
+          if (existingByCallId) {
+            call = await this.prisma.call.update({
+              where: { id: existingByCallId.id },
+              data: {
+                callDirection,
+                status,
+                duration,
+                avitoName: phone?.avitoName || null,
+                mangoData: payload,
+                ...(masterId && { masterId }),
+              },
+              include: {
+                operator: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            });
+            this.logger.log(`Updated call after race condition: ${call.id}`);
+          } else {
+            throw createError;
+          }
+        } else {
+          throw createError;
+        }
+      }
     }
 
     // Broadcast обновления
