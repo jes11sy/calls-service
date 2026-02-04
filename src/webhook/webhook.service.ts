@@ -92,8 +92,29 @@ export class WebhookService {
         return { success: true, message: 'Entry ID missing' };
       }
 
+      // Сначала ищем существующий звонок - он мог быть создан в Disconnected с callDirection='callback'
+      const existingCallForDirection = await this.prisma.call.findFirst({
+        where: {
+          OR: [
+            { callId: entry_id },
+            {
+              mangoData: {
+                path: ['entry_id'],
+                equals: entry_id,
+              },
+            },
+          ],
+        },
+      });
+
       // Определяем направление звонка
-      const isCallback = command_id && command_id.startsWith('callback_');
+      // Приоритет: существующий звонок > command_id > call_direction от Mango
+      let isCallback = command_id && command_id.startsWith('callback_');
+      if (!isCallback && existingCallForDirection?.callDirection === 'callback') {
+        isCallback = true;
+        this.logger.log(`Detected callback from existing call: ${existingCallForDirection.id}`);
+      }
+      
       // call_direction: 1 = входящий, 2 = исходящий
       const isOutbound = call_direction === 2;
       const callDirectionType = isCallback ? 'callback' : (isOutbound ? 'outbound' : 'inbound');
@@ -128,16 +149,26 @@ export class WebhookService {
 
       let operator;
       let phone;
+      let masterId: number | null = null;
 
       if (isCallback) {
         // Для callback-звонков используем оператора "Система" (ID = 1)
+        // И пытаемся получить masterId из существующего звонка или из command_id
         const [phoneResult, systemOperator] = await Promise.all([
           this.prisma.phone.findUnique({ where: { number: phoneAts } }),
           this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
         ]);
         phone = phoneResult;
         operator = systemOperator;
-        this.logger.log(`Callback call - using System operator (ID: 1)`);
+        
+        // Берём masterId из существующего звонка или пытаемся получить из command_id
+        if (existingCallForDirection?.masterId) {
+          masterId = existingCallForDirection.masterId;
+        } else if (command_id) {
+          masterId = await this.getMasterIdFromCommandId(command_id);
+        }
+        
+        this.logger.log(`Callback call - using System operator (ID: 1), masterId: ${masterId}`);
       } else {
         // Определяем откуда брать SIP-адрес оператора
         // Для исходящих: оператор в from.number (sip:...)
@@ -169,36 +200,26 @@ export class WebhookService {
         // Не создаём автоматически - phone остаётся null если не найден
       }
 
-      // Проверяем, существует ли звонок по entry_id в JSON mangoData
-      // (звонок мог быть создан в Connected с call_id, а не entry_id)
-      const existingCall = await this.prisma.call.findFirst({
-        where: {
-          OR: [
-            // 1. Ищем по callId = entry_id (если уже обновлен)
-            { callId: entry_id },
-            // 2. Ищем по entry_id в JSON поле mangoData
-            {
-              mangoData: {
-                path: ['entry_id'],
-                equals: entry_id,
-              },
+      // Используем ранее найденный звонок или ищем дополнительно по номерам
+      let existingCall = existingCallForDirection;
+      
+      if (!existingCall) {
+        // Дополнительный поиск по номерам и времени
+        existingCall = await this.prisma.call.findFirst({
+          where: {
+            phoneClient,
+            phoneAts,
+            operatorId: operator.id,
+            createdAt: {
+              gte: new Date((create_time - 10) * 1000), // ±10 секунд
+              lte: new Date((create_time + 10) * 1000),
             },
-            // 3. Ищем по номеру клиента, АТС и оператору с временным окном
-            {
-              phoneClient,
-              phoneAts,
-              operatorId: operator.id,
-              createdAt: {
-                gte: new Date((create_time - 10) * 1000), // ±10 секунд
-                lte: new Date((create_time + 10) * 1000),
-              },
-            },
-          ],
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+      }
 
       let call;
       let isNewCall = false;
@@ -216,6 +237,7 @@ export class WebhookService {
             phoneAts,
             avitoName: phone?.avitoName || null, // Берем avitoName из phone
             mangoData: summaryData,
+            ...(masterId && { masterId }), // Добавляем masterId только если есть
           },
           include: {
             operator: {
@@ -227,7 +249,7 @@ export class WebhookService {
           },
         });
         
-        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, direction: ${callDirectionType}, avitoName: ${phone?.avitoName || 'null'}`);
+        this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, direction: ${callDirectionType}, masterId: ${masterId}, avitoName: ${phone?.avitoName || 'null'}`);
       } else {
         isNewCall = true;
         // Создаем новый звонок
@@ -244,6 +266,7 @@ export class WebhookService {
             duration,
             operatorId: operator.id,
             mangoData: summaryData,
+            ...(masterId && { masterId }), // Добавляем masterId только если есть
           },
           include: {
             operator: {
@@ -463,6 +486,7 @@ export class WebhookService {
     let operator;
     let phone;
     let existingCall;
+    let masterId: number | null = null;
 
     if (isCallback) {
       // Для callback-звонков используем оператора "Система" (ID = 1)
@@ -474,6 +498,12 @@ export class WebhookService {
       phone = phoneResult;
       operator = systemOperator;
       existingCall = call;
+      
+      // Получаем masterId из command_id
+      if (command_id) {
+        masterId = await this.getMasterIdFromCommandId(command_id);
+        this.logger.log(`Callback disconnected - masterId: ${masterId} from command_id: ${command_id}`);
+      }
     } else {
       // Определяем откуда брать SIP-адрес оператора
       // Для исходящих: оператор в from.number (sip:...)
@@ -508,6 +538,7 @@ export class WebhookService {
           duration,
           avitoName: phone?.avitoName || null,
           mangoData: payload,
+          ...(masterId && { masterId }), // Добавляем masterId только если есть
         },
         include: {
           operator: {
@@ -533,6 +564,7 @@ export class WebhookService {
           duration,
           operatorId: operator?.id || 1, // Fallback to operator 1
           mangoData: payload,
+          ...(masterId && { masterId }), // Добавляем masterId только если есть
         },
         include: {
           operator: {
@@ -727,6 +759,43 @@ export class WebhookService {
     return this.prisma.phone.findUnique({
       where: { number: phoneNumber },
     });
+  }
+
+  /**
+   * Получает masterId из command_id для callback-звонков
+   * command_id имеет формат: callback_orderId_timestamp
+   * Пример: callback_12345_1770220944
+   */
+  private async getMasterIdFromCommandId(commandId: string): Promise<number | null> {
+    try {
+      if (!commandId || !commandId.startsWith('callback_')) {
+        return null;
+      }
+
+      // Парсим orderId из command_id: callback_12345_1770220944
+      const parts = commandId.split('_');
+      if (parts.length < 2) {
+        this.logger.warn(`Invalid command_id format: ${commandId}`);
+        return null;
+      }
+
+      const orderId = parseInt(parts[1], 10);
+      if (isNaN(orderId)) {
+        this.logger.warn(`Cannot parse orderId from command_id: ${commandId}`);
+        return null;
+      }
+
+      // Получаем заказ из orders-service (через HTTP или напрямую из БД)
+      // Пока просто логируем - нужно добавить интеграцию с orders-service
+      this.logger.log(`Parsed orderId: ${orderId} from command_id: ${commandId}`);
+      
+      // TODO: Получить masterId из заказа через HTTP запрос к orders-service
+      // Пока возвращаем null - можно будет добавить позже
+      return null;
+    } catch (error) {
+      this.logger.error(`Error getting masterId from command_id: ${error.message}`);
+      return null;
+    }
   }
 
   /**
