@@ -188,7 +188,7 @@ export class WebhookService {
               phoneClient,
               phoneAts,
               operatorId: operator.id,
-              dateCreate: {
+              createdAt: {
                 gte: new Date((create_time - 10) * 1000), // ±10 секунд
                 lte: new Date((create_time + 10) * 1000),
               },
@@ -196,7 +196,7 @@ export class WebhookService {
           ],
         },
         orderBy: {
-          dateCreate: 'desc',
+          createdAt: 'desc',
         },
       });
 
@@ -209,12 +209,12 @@ export class WebhookService {
           where: { id: existingCall.id },
           data: {
             callId: entry_id, // Обновляем callId на entry_id из Summary
+            callDirection: callDirectionType, // inbound | outbound | callback
             status,
             duration,
             phoneClient,
             phoneAts,
             avitoName: phone?.avitoName || null, // Берем avitoName из phone
-            dateCreate: new Date(create_time * 1000),
             mangoData: summaryData,
           },
           include: {
@@ -235,11 +235,11 @@ export class WebhookService {
           data: {
             rk,
             city,
+            callDirection: callDirectionType, // inbound | outbound | callback
             callId: entry_id,
             phoneClient,
             phoneAts,
             avitoName: phone?.avitoName || null, // Берем avitoName из phone
-            dateCreate: new Date(create_time * 1000),
             status,
             duration,
             operatorId: operator.id,
@@ -394,6 +394,7 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { callId: call_id },
         data: {
+          callDirection, // inbound | outbound | callback
           status: 'answered',
           operatorId: operator.id,
           avitoName: phone?.avitoName || null,
@@ -406,11 +407,11 @@ export class WebhookService {
         data: {
           rk,
           city,
+          callDirection, // inbound | outbound | callback
           callId: call_id,
           phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
-          dateCreate: new Date(create_time || answer_time || timestamp * 1000),
           status: 'answered',
           operatorId: operator.id,
           mangoData: payload,
@@ -502,6 +503,7 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { callId: call_id },
         data: {
+          callDirection, // inbound | outbound | callback
           status,
           duration,
           avitoName: phone?.avitoName || null,
@@ -522,11 +524,11 @@ export class WebhookService {
         data: {
           rk,
           city,
+          callDirection, // inbound | outbound | callback
           callId: call_id,
           phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
-          dateCreate: new Date(create_time || timestamp * 1000),
           status,
           duration,
           operatorId: operator?.id || 1, // Fallback to operator 1
@@ -633,11 +635,11 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { callId: call_id },
         data: {
+          callDirection, // inbound | outbound | callback
           status,
           duration,
           phoneAts,
           avitoName: phone?.avitoName || null,
-          dateCreate: new Date(create_time || timestamp * 1000),
           mangoData: payload,
         },
       });
@@ -646,11 +648,11 @@ export class WebhookService {
         data: {
           rk,
           city,
+          callDirection, // inbound | outbound | callback
           callId: call_id,
           phoneClient,
           phoneAts,
           avitoName: phone?.avitoName || null,
-          dateCreate: new Date(create_time || timestamp * 1000),
           duration,
           status,
           operatorId: operator?.id || 1,

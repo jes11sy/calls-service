@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsIn, IsDateString } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCallDto {
@@ -11,6 +11,12 @@ export class CreateCallDto {
   @IsString()
   @IsOptional()
   city?: string;
+
+  @ApiProperty({ required: false, enum: ['inbound', 'outbound', 'callback'] })
+  @IsString()
+  @IsOptional()
+  @IsIn(['inbound', 'outbound', 'callback'])
+  callDirection?: string;
 
   @ApiProperty({ required: false })
   @IsString()
@@ -32,11 +38,6 @@ export class CreateCallDto {
   phoneAts?: string;
 
   @ApiProperty({ required: false })
-  @IsDateString()
-  @IsOptional()
-  dateCreate?: string;
-
-  @ApiProperty({ required: false })
   @IsNumber()
   @IsOptional()
   duration?: number;
@@ -45,11 +46,6 @@ export class CreateCallDto {
   @IsString()
   @IsIn(['answered', 'missed', 'busy', 'no_answer'])
   status: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  recordUrl?: string;
 }
 
 export class UpdateCallDto {
@@ -63,12 +59,9 @@ export class UpdateCallDto {
   @IsOptional()
   duration?: number;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, enum: ['inbound', 'outbound', 'callback'] })
   @IsString()
   @IsOptional()
-  recordUrl?: string;
+  @IsIn(['inbound', 'outbound', 'callback'])
+  callDirection?: string;
 }
-
-
-
-

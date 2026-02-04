@@ -12,31 +12,31 @@ model Call {
   id                   Int       @id @default(autoincrement())
   rk                   String
   city                 String
-  avitoName            String?   @map("avito_name")
+  callDirection        String    @map("call_direction")  // 'inbound' | 'outbound' | 'callback'
   phoneClient          String    @map("phone_client")
   phoneAts             String    @map("phone_ats")
-  dateCreate           DateTime  @map("date_create")
+  avitoName            String?   @map("avito_name")
+  masterId             Int?      @map("master_id")       // Привязка к мастеру
   operatorId           Int       @map("operator_id")
-  status               String
-  callId               String?   @unique @map("call_id")
-  duration             Int?
-  recordUrl            String?   @map("record_url")
+  status               String                            // 'answered' | 'missed' | 'busy' | 'no_answer'
   recordingPath        String?   @map("recording_path")
   recordingProcessedAt DateTime? @map("recording_processed_at")
-  recordingEmailSent   Boolean   @default(false) @map("recording_email_sent")
+  callId               String?   @unique @map("call_id")
+  duration             Int?
   mangoData            Json?     @map("mango_data")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   
-  // ✅ FIX #146: Добавлены onDelete для предотвращения orphaned records
   operator        CallcentreOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
   phone           Phone?             @relation(fields: [phoneAts], references: [number], onDelete: SetNull)
   avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name], onDelete: SetNull)
   
   @@map("calls")
   @@index([city])
-  @@index([dateCreate])
+  @@index([callDirection])
+  @@index([createdAt])
   @@index([operatorId])
+  @@index([masterId])
   @@index([phoneClient])
   @@index([phoneAts])
   @@index([avitoName])

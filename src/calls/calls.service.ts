@@ -15,16 +15,6 @@ export class CallsService {
     private realtimeService: RealtimeService,
   ) {}
 
-  /**
-   * Определяет направление звонка по формату phoneClient
-   * Исходящий: phoneClient содержит sip: (например: sip:kovalenko_oksana@vpbx400349703.mangosip.ru)
-   * Входящий: phoneClient - обычный номер телефона
-   */
-  private determineCallDirection(phoneClient: string): 'incoming' | 'outgoing' {
-    if (!phoneClient) return 'incoming';
-    return phoneClient.toLowerCase().includes('sip:') ? 'outgoing' : 'incoming';
-  }
-
   async getCalls(query: any, user: any) {
     const { status, operatorId, startDate, endDate, phone, city } = query;
 
@@ -50,9 +40,9 @@ export class CallsService {
     }
 
     if (startDate || endDate) {
-      where.dateCreate = {};
-      if (startDate) where.dateCreate.gte = new Date(startDate);
-      if (endDate) where.dateCreate.lte = new Date(endDate);
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
     // Pagination
@@ -65,22 +55,21 @@ export class CallsService {
 
     const calls = await this.prisma.call.findMany({
       where,
-      orderBy: { dateCreate: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         rk: true,
         city: true,
+        callDirection: true,
         avitoName: true,
         phoneClient: true,
         phoneAts: true,
-        dateCreate: true,
+        masterId: true,
         status: true,
         callId: true,
         duration: true,
-        recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        recordingEmailSent: true,
         // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
@@ -112,16 +101,10 @@ export class CallsService {
       take: limit,
     });
 
-    // Добавляем callDirection к каждому звонку
-    const callsWithDirection = calls.map(call => ({
-      ...call,
-      callDirection: this.determineCallDirection(call.phoneClient),
-    }));
-
     return {
       success: true,
       data: {
-        calls: callsWithDirection,
+        calls,
         pagination: {
           total,
           page,
@@ -139,17 +122,16 @@ export class CallsService {
         id: true,
         rk: true,
         city: true,
+        callDirection: true,
         avitoName: true,
         phoneClient: true,
         phoneAts: true,
-        dateCreate: true,
+        masterId: true,
         status: true,
         callId: true,
         duration: true,
-        recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        recordingEmailSent: true,
         // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
@@ -197,14 +179,13 @@ export class CallsService {
       data: {
         rk: dto.rk || 'MANUAL',
         city: dto.city || '',
+        callDirection: dto.callDirection || 'inbound',
         avitoName: dto.avitoName,
         callId: dto.callId || `MANUAL-${Date.now()}`,
         phoneClient: dto.phoneClient,
         phoneAts: dto.phoneAts || '',
-        dateCreate: new Date(dto.dateCreate || Date.now()),
         duration: dto.duration,
         status: dto.status,
-        recordUrl: dto.recordUrl,
         operatorId: user.userId,
       },
       include: {
@@ -241,7 +222,7 @@ export class CallsService {
       data: {
         ...(dto.status && { status: dto.status }),
         ...(dto.duration !== undefined && { duration: dto.duration }),
-        ...(dto.recordUrl && { recordUrl: dto.recordUrl }),
+        ...(dto.callDirection && { callDirection: dto.callDirection }),
       },
     });
 
@@ -261,22 +242,21 @@ export class CallsService {
       where: {
         phoneClient: { contains: phone },
       },
-      orderBy: { dateCreate: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         rk: true,
         city: true,
+        callDirection: true,
         avitoName: true,
         phoneClient: true,
         phoneAts: true,
-        dateCreate: true,
+        masterId: true,
         status: true,
         callId: true,
         duration: true,
-        recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        recordingEmailSent: true,
         // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
@@ -310,15 +290,9 @@ export class CallsService {
       take: 50,
     });
 
-    // Добавляем callDirection к каждому звонку
-    const callsWithDirection = calls.map(call => ({
-      ...call,
-      callDirection: this.determineCallDirection(call.phoneClient),
-    }));
-
     return {
       success: true,
-      data: callsWithDirection,
+      data: calls,
     };
   }
 
@@ -360,9 +334,9 @@ export class CallsService {
     }
 
     if (startDate || endDate) {
-      where.dateCreate = {};
-      if (startDate) where.dateCreate.gte = new Date(startDate);
-      if (endDate) where.dateCreate.lte = new Date(endDate);
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
     // Пагинация по группам
@@ -371,7 +345,7 @@ export class CallsService {
     const skip = (page - 1) * groupsPerPage;
 
     // Сортировка
-    const sortBy = query.sortBy || 'dateCreate';
+    const sortBy = query.sortBy || 'createdAt';
     const sortOrder = query.sortOrder || 'desc';
 
     // 1. Получаем уникальные номера телефонов с последним звонком для сортировки
@@ -379,14 +353,14 @@ export class CallsService {
       by: ['phoneClient'],
       where,
       _max: {
-        dateCreate: true,
+        createdAt: true,
       },
       _count: {
         id: true,
       },
       orderBy: {
         _max: {
-          dateCreate: sortOrder as 'asc' | 'desc',
+          createdAt: sortOrder as 'asc' | 'desc',
         },
       },
     });
@@ -404,22 +378,21 @@ export class CallsService {
         ...where,
         phoneClient: { in: phoneNumbers },
       },
-      orderBy: { dateCreate: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         rk: true,
         city: true,
+        callDirection: true,
         avitoName: true,
         phoneClient: true,
         phoneAts: true,
-        dateCreate: true,
+        masterId: true,
         status: true,
         callId: true,
         duration: true,
-        recordUrl: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        recordingEmailSent: true,
         createdAt: true,
         updatedAt: true,
         operator: {
@@ -448,7 +421,7 @@ export class CallsService {
       },
     });
 
-    // 4. Группируем звонки по номеру телефона и добавляем callDirection
+    // 4. Группируем звонки по номеру телефона
     const groupedCalls: Record<string, any[]> = {};
     
     // Сначала создаём пустые группы в правильном порядке
@@ -456,13 +429,10 @@ export class CallsService {
       groupedCalls[phone] = [];
     }
     
-    // Затем заполняем группы звонками с добавлением callDirection
+    // Затем заполняем группы звонками
     for (const call of calls) {
       if (groupedCalls[call.phoneClient]) {
-        groupedCalls[call.phoneClient].push({
-          ...call,
-          callDirection: this.determineCallDirection(call.phoneClient),
-        });
+        groupedCalls[call.phoneClient].push(call);
       }
     }
 
@@ -481,7 +451,7 @@ export class CallsService {
     const todayCalls = await this.prisma.call.count({
       where: {
         ...where,
-        dateCreate: { gte: today },
+        createdAt: { gte: today },
       },
     });
 
@@ -518,9 +488,9 @@ export class CallsService {
     }
 
     if (startDate || endDate) {
-      where.dateCreate = {};
-      if (startDate) where.dateCreate.gte = new Date(startDate);
-      if (endDate) where.dateCreate.lte = new Date(endDate);
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
     const [totalCalls, answeredCalls, missedCalls, totalDuration] = await Promise.all([
@@ -553,7 +523,7 @@ export class CallsService {
       data: {
         ...(data.status && { status: data.status }),
         ...(data.duration !== undefined && { duration: data.duration }),
-        ...(data.recordUrl && { recordUrl: data.recordUrl }),
+        ...(data.callDirection && { callDirection: data.callDirection }),
       },
     });
 
@@ -612,13 +582,12 @@ export class CallsService {
             id: true,
             rk: true,
             city: true,
+            callDirection: true,
             phoneClient: true,
             phoneAts: true,
-            dateCreate: true,
             status: true,
             callId: true,
             duration: true,
-            recordUrl: true,
             recordingPath: true,
             createdAt: true,
             updatedAt: true,
@@ -631,7 +600,7 @@ export class CallsService {
             }
           },
           orderBy: {
-            dateCreate: 'desc'
+            createdAt: 'desc'
           }
         });
       }
@@ -640,7 +609,7 @@ export class CallsService {
     // Добавляем recordingUrl для совместимости с фронтендом
     const callsWithRecordingUrl = calls.map(call => ({
       ...call,
-      recordingUrl: call.recordingPath || call.recordUrl
+      recordingUrl: call.recordingPath
     }));
 
     return {
@@ -695,7 +664,7 @@ export class CallsService {
       if (!phoneAts) {
         const lastCall = await this.prisma.call.findFirst({
           where: { phoneClient: order.phone },
-          orderBy: { dateCreate: 'desc' },
+          orderBy: { createdAt: 'desc' },
           select: { phoneAts: true },
         });
         if (lastCall?.phoneAts) {

@@ -2,24 +2,24 @@ export interface ICall {
   id: number;
   rk: string;
   city: string;
+  callDirection: CallDirection;
   avitoName: string | null;
   phoneClient: string;
   phoneAts: string;
-  dateCreate: Date;
+  masterId: number | null;
   operatorId: number;
   status: CallStatus;
   callId: string | null;
   duration: number | null;
-  recordUrl: string | null;
   recordingPath: string | null;
   recordingProcessedAt: Date | null;
-  recordingEmailSent: boolean;
   mangoData: any | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type CallStatus = 'answered' | 'missed' | 'busy' | 'no_answer';
+export type CallDirection = 'inbound' | 'outbound' | 'callback';
 
 export interface ICallWithOperator extends ICall {
   operator: {
@@ -64,4 +64,3 @@ export interface IPaginatedCalls {
     totalPages: number;
   };
 }
-
