@@ -56,6 +56,31 @@ export class WebhookService {
         return { success: true, message: 'Callback first leg ignored' };
       }
 
+      // Игнорируем "дозвоны" после callback - входящие звонки от того же клиента
+      // в течение 10 секунд после callback на тот же номер АТС
+      if (callDirection === 'inbound') {
+        const phoneClient = from?.number || from;
+        const phoneAts = to?.line_number || from?.line_number;
+        
+        if (phoneClient && phoneAts) {
+          const tenSecondsAgo = new Date(Date.now() - 10000);
+          const recentCallback = await this.prisma.call.findFirst({
+            where: {
+              phoneClient,
+              phoneAts,
+              callDirection: 'callback',
+              createdAt: { gte: tenSecondsAgo },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          
+          if (recentCallback) {
+            this.logger.log(`Ignoring post-callback followup from ${phoneClient} to ${phoneAts} (recent callback: ${recentCallback.id})`);
+            return { success: true, message: 'Post-callback followup ignored' };
+          }
+        }
+      }
+
       // Обрабатываем события по call_state
       if (call_state === 'Appeared') {
         return this.handleCallAppeared(payload, callDirection);
@@ -128,6 +153,31 @@ export class WebhookService {
       const callDirectionType = isCallback ? 'callback' : (isOutbound ? 'outbound' : 'inbound');
       
       this.logger.log(`Processing ${callDirectionType} call: ${entry_id}`);
+
+      // Игнорируем "дозвоны" после callback - входящие звонки от того же клиента
+      // в течение 10 секунд после callback на тот же номер АТС
+      if (callDirectionType === 'inbound' && !existingCallForDirection) {
+        const phoneClient = from?.number || from;
+        const phoneAts = line_number || to?.line_number || from?.line_number;
+        
+        if (phoneClient && phoneAts) {
+          const tenSecondsAgo = new Date(Date.now() - 10000);
+          const recentCallback = await this.prisma.call.findFirst({
+            where: {
+              phoneClient,
+              phoneAts,
+              callDirection: 'callback',
+              createdAt: { gte: tenSecondsAgo },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          
+          if (recentCallback) {
+            this.logger.log(`Ignoring post-callback followup summary from ${phoneClient} to ${phoneAts} (recent callback: ${recentCallback.id})`);
+            return { success: true, message: 'Post-callback followup ignored' };
+          }
+        }
+      }
 
       // Определяем статус звонка и длительность
       let status = 'missed';
