@@ -48,6 +48,14 @@ export class WebhookService {
       const isOutbound = this.isOutboundCall(from, to);
       const callDirection = isCallback ? 'callback' : (isOutbound ? 'outbound' : 'inbound');
 
+      // Для callback игнорируем первую "ногу" (звонок системы к мастеру)
+      // Первая нога определяется по наличию to.extension (внутренний номер мастера)
+      // Записываем только вторую ногу - когда мастер соединяется с клиентом
+      if (isCallback && to?.extension) {
+        this.logger.log(`Ignoring callback first leg (to master): ${call_id}, extension: ${to.extension}`);
+        return { success: true, message: 'Callback first leg ignored' };
+      }
+
       // Обрабатываем события по call_state
       if (call_state === 'Appeared') {
         return this.handleCallAppeared(payload, callDirection);
@@ -347,7 +355,7 @@ export class WebhookService {
   }
 
   private async handleCallConnected(payload: any, callDirection: string = 'inbound') {
-    const { call_id, from, to, answer_time, create_time, timestamp, command_id } = payload;
+    const { call_id, from, to, answer_time, create_time, timestamp, command_id, entry_id } = payload;
 
     if (!call_id) {
       this.logger.warn('Call ID is missing in Connected event');
@@ -364,6 +372,27 @@ export class WebhookService {
     // Для исходящих: клиент в to, для входящих: клиент в from
     const phoneClient = isOutbound ? (to?.number || to) : (from?.number || from);
 
+    // Используем entry_id как callId если есть (для связи с Summary), иначе call_id
+    const primaryCallId = entry_id || call_id;
+
+    // Ищем существующий звонок по call_id ИЛИ entry_id (для дедупликации)
+    const findExistingCall = async () => {
+      let call = await this.prisma.call.findUnique({ where: { callId: call_id } });
+      if (call) return call;
+      
+      if (entry_id) {
+        call = await this.prisma.call.findFirst({
+          where: {
+            OR: [
+              { callId: entry_id },
+              { mangoData: { path: ['entry_id'], equals: entry_id } },
+            ],
+          },
+        });
+      }
+      return call;
+    };
+
     let operator;
     let phone;
     let existingCall;
@@ -373,7 +402,7 @@ export class WebhookService {
       const [phoneResult, systemOperator, call] = await Promise.all([
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
         this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
-        this.prisma.call.findUnique({ where: { callId: call_id } }),
+        findExistingCall(),
       ]);
       phone = phoneResult;
       operator = systemOperator;
@@ -390,7 +419,7 @@ export class WebhookService {
       const [foundOperator, phoneResult, call] = await Promise.all([
         this.findOperatorBySip(sipUsername),
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
-        this.prisma.call.findUnique({ where: { callId: call_id } }),
+        findExistingCall(),
       ]);
       operator = foundOperator;
       phone = phoneResult;
@@ -406,17 +435,13 @@ export class WebhookService {
     const city = phone?.city || operator?.city || 'Не указан';
     const rk = phone?.rk || 'Уточнить';
 
-    // Создаем phone если не существует
-    if (!phone) {
-      // Не создаём автоматически - phone остаётся null если не найден
-    }
-
     let call;
     if (existingCall) {
       // Обновляем статус на answered
       call = await this.prisma.call.update({
-        where: { callId: call_id },
+        where: { id: existingCall.id },
         data: {
+          callId: primaryCallId, // Обновляем на entry_id для связи с Summary
           callDirection, // inbound | outbound | callback
           status: 'answered',
           operatorId: operator.id,
@@ -424,6 +449,7 @@ export class WebhookService {
           mangoData: payload,
         },
       });
+      this.logger.log(`Updated call ${existingCall.id} to answered, callId: ${primaryCallId}`);
     } else {
       // Создаем новый звонок
       call = await this.prisma.call.create({
@@ -431,7 +457,7 @@ export class WebhookService {
           rk,
           city,
           callDirection, // inbound | outbound | callback
-          callId: call_id,
+          callId: primaryCallId,
           phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
@@ -448,6 +474,7 @@ export class WebhookService {
           },
         },
       });
+      this.logger.log(`Created new call ${call.id}, callId: ${primaryCallId}`);
 
       // Broadcast нового звонка
       await this.realtimeService.broadcastNewCall(call, [
@@ -459,7 +486,7 @@ export class WebhookService {
     return {
       success: true,
       message: 'Call connected',
-      data: { callId: call_id },
+      data: { callId: primaryCallId },
     };
   }
 
@@ -488,12 +515,32 @@ export class WebhookService {
     let existingCall;
     let masterId: number | null = null;
 
+    // Ищем существующий звонок по call_id ИЛИ entry_id (для дедупликации)
+    const findExistingCall = async () => {
+      // Сначала по call_id
+      let call = await this.prisma.call.findUnique({ where: { callId: call_id } });
+      if (call) return call;
+      
+      // Потом по entry_id (если есть)
+      if (entry_id) {
+        call = await this.prisma.call.findFirst({
+          where: {
+            OR: [
+              { callId: entry_id },
+              { mangoData: { path: ['entry_id'], equals: entry_id } },
+            ],
+          },
+        });
+      }
+      return call;
+    };
+
     if (isCallback) {
       // Для callback-звонков используем оператора "Система" (ID = 1)
       const [phoneResult, systemOperator, call] = await Promise.all([
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
         this.prisma.callcentreOperator.findUnique({ where: { id: 1 } }),
-        this.prisma.call.findUnique({ where: { callId: call_id } }),
+        findExistingCall(),
       ]);
       phone = phoneResult;
       operator = systemOperator;
@@ -516,7 +563,7 @@ export class WebhookService {
       const [foundOperator, phoneResult, call] = await Promise.all([
         this.findOperatorBySip(sipUsername),
         this.prisma.phone.findUnique({ where: { number: phoneAts } }),
-        this.prisma.call.findUnique({ where: { callId: call_id } }),
+        findExistingCall(),
       ]);
       operator = foundOperator;
       phone = phoneResult;
@@ -527,12 +574,16 @@ export class WebhookService {
     const city = phone?.city || operator?.city || 'Неизвестно';
     const rk = phone?.rk || 'Уточнить';
 
+    // Используем entry_id как callId если есть (для связи с Summary), иначе call_id
+    const primaryCallId = entry_id || call_id;
+
     let call;
     if (existingCall) {
       // Обновляем финальными данными
       call = await this.prisma.call.update({
-        where: { callId: call_id },
+        where: { id: existingCall.id },
         data: {
+          callId: primaryCallId, // Обновляем callId на entry_id для связи с Summary
           callDirection, // inbound | outbound | callback
           status,
           duration,
@@ -549,6 +600,7 @@ export class WebhookService {
           },
         },
       });
+      this.logger.log(`Updated call ${existingCall.id} with callId: ${primaryCallId}`);
     } else {
       // Создаем звонок при завершении (если не был создан раньше)
       call = await this.prisma.call.create({
@@ -556,7 +608,7 @@ export class WebhookService {
           rk,
           city,
           callDirection, // inbound | outbound | callback
-          callId: call_id,
+          callId: primaryCallId, // Используем entry_id для связи с Summary
           phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
@@ -575,6 +627,7 @@ export class WebhookService {
           },
         },
       });
+      this.logger.log(`Created new call ${call.id} with callId: ${primaryCallId}`);
 
       // Broadcast нового звонка
       await this.realtimeService.broadcastNewCall(call, ['operators']);
@@ -764,7 +817,7 @@ export class WebhookService {
   /**
    * Получает masterId из command_id для callback-звонков
    * command_id имеет формат: callback_orderId_timestamp
-   * Пример: callback_12345_1770220944
+   * Пример: callback_2002_1770240175394
    */
   private async getMasterIdFromCommandId(commandId: string): Promise<number | null> {
     try {
@@ -772,7 +825,7 @@ export class WebhookService {
         return null;
       }
 
-      // Парсим orderId из command_id: callback_12345_1770220944
+      // Парсим orderId из command_id: callback_2002_1770240175394
       const parts = commandId.split('_');
       if (parts.length < 2) {
         this.logger.warn(`Invalid command_id format: ${commandId}`);
@@ -785,13 +838,19 @@ export class WebhookService {
         return null;
       }
 
-      // Получаем заказ из orders-service (через HTTP или напрямую из БД)
-      // Пока просто логируем - нужно добавить интеграцию с orders-service
-      this.logger.log(`Parsed orderId: ${orderId} from command_id: ${commandId}`);
-      
-      // TODO: Получить masterId из заказа через HTTP запрос к orders-service
-      // Пока возвращаем null - можно будет добавить позже
-      return null;
+      // Получаем masterId из заказа напрямую из БД
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        select: { masterId: true },
+      });
+
+      if (!order) {
+        this.logger.warn(`Order not found: ${orderId}`);
+        return null;
+      }
+
+      this.logger.log(`Found masterId: ${order.masterId} for orderId: ${orderId} from command_id: ${commandId}`);
+      return order.masterId;
     } catch (error) {
       this.logger.error(`Error getting masterId from command_id: ${error.message}`);
       return null;
