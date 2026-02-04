@@ -174,6 +174,13 @@ export class WebhookService {
           masterId = existingCallForDirection.masterId;
         } else if (command_id) {
           masterId = await this.getMasterIdFromCommandId(command_id);
+        } else {
+          // Пытаемся получить command_id из mangoData существующего звонка (может быть от Connected/Disconnected)
+          const savedCommandId = (existingCallForDirection?.mangoData as any)?.command_id;
+          if (savedCommandId) {
+            masterId = await this.getMasterIdFromCommandId(savedCommandId);
+            this.logger.log(`Got masterId from saved mangoData command_id: ${savedCommandId}`);
+          }
         }
         
         this.logger.log(`Callback call - using System operator (ID: 1), masterId: ${masterId}`);
@@ -260,31 +267,69 @@ export class WebhookService {
         this.logger.log(`Updated existing call: ${existingCall.id}, callId: ${entry_id}, direction: ${callDirectionType}, masterId: ${masterId}, avitoName: ${phone?.avitoName || 'null'}`);
       } else {
         isNewCall = true;
-        // Создаем новый звонок
-        call = await this.prisma.call.create({
-          data: {
-            rk,
-            city,
-            callDirection: callDirectionType, // inbound | outbound | callback
-            callId: entry_id,
-            phoneClient,
-            phoneAts,
-            avitoName: phone?.avitoName || null, // Берем avitoName из phone
-            status,
-            duration,
-            operatorId: operator.id,
-            mangoData: summaryData,
-            ...(masterId && { masterId }), // Добавляем masterId только если есть
-          },
-          include: {
-            operator: {
-              select: {
-                id: true,
-                name: true,
+        // Создаем новый звонок (с обработкой race condition)
+        try {
+          call = await this.prisma.call.create({
+            data: {
+              rk,
+              city,
+              callDirection: callDirectionType, // inbound | outbound | callback
+              callId: entry_id,
+              phoneClient,
+              phoneAts,
+              avitoName: phone?.avitoName || null, // Берем avitoName из phone
+              status,
+              duration,
+              operatorId: operator.id,
+              mangoData: summaryData,
+              ...(masterId && { masterId }), // Добавляем masterId только если есть
+            },
+            include: {
+              operator: {
+                select: {
+                  id: true,
+                  name: true,
+                },
               },
             },
-          },
-        });
+          });
+        } catch (createError: any) {
+          // Обработка race condition - если запись уже создана другим событием
+          if (createError.code === 'P2002') {
+            this.logger.log(`Race condition detected, call already exists with callId: ${entry_id}`);
+            // Повторно ищем и обновляем
+            const existingByCallId = await this.prisma.call.findUnique({
+              where: { callId: entry_id },
+            });
+            if (existingByCallId) {
+              call = await this.prisma.call.update({
+                where: { id: existingByCallId.id },
+                data: {
+                  callDirection: callDirectionType,
+                  status,
+                  duration,
+                  avitoName: phone?.avitoName || null,
+                  mangoData: summaryData,
+                  ...(masterId && { masterId }),
+                },
+                include: {
+                  operator: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              });
+              isNewCall = false;
+              this.logger.log(`Updated call after race condition: ${call.id}`);
+            } else {
+              throw createError;
+            }
+          } else {
+            throw createError;
+          }
+        }
       }
 
       // Broadcast в зависимости от того, новый звонок или обновленный
