@@ -390,6 +390,18 @@ export class WebhookService {
           `operator:${operator.id}`,
         ]);
         this.logger.log(`Broadcasted new call: ${call.id}`);
+        
+        // ✅ UI уведомление оператору о входящем звонке
+        if (callDirectionType === 'inbound' && operator.id) {
+          this.realtimeService.sendCallNotificationToOperator(
+            operator.id,
+            call.id,
+            phoneClient,
+            callDirectionType,
+            city,
+            phone?.avitoName,
+          ).catch(err => this.logger.warn(`UI notification failed: ${err.message}`));
+        }
       } else {
         // Broadcast обновления существующего звонка
         await this.realtimeService.broadcastCallUpdated(call, ['operators']);
@@ -576,6 +588,18 @@ export class WebhookService {
         'operators',
         `operator:${operator.id}`,
       ]);
+      
+      // ✅ UI уведомление оператору о входящем звонке
+      if (callDirection === 'inbound' && operator.id) {
+        this.realtimeService.sendCallNotificationToOperator(
+          operator.id,
+          call.id,
+          phoneClient,
+          callDirection as 'inbound' | 'outbound' | 'callback',
+          city,
+          phone?.avitoName,
+        ).catch(err => this.logger.warn(`UI notification failed: ${err.message}`));
+      }
     }
 
     return {

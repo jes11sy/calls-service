@@ -113,6 +113,37 @@ export class RealtimeService {
     }
   }
 
+  /**
+   * Отправить UI-уведомление оператору о входящем звонке
+   */
+  async sendCallNotificationToOperator(
+    operatorId: number,
+    callId: number,
+    phoneClient: string,
+    callDirection: 'inbound' | 'outbound' | 'callback',
+    city?: string,
+    avitoName?: string,
+  ): Promise<void> {
+    try {
+      await this.axiosInstance.post(
+        `${this.realtimeUrl}/api/v1/notifications/internal/operator/call`,
+        {
+          operatorId,
+          callId,
+          phoneClient,
+          callDirection,
+          city,
+          avitoName,
+        },
+        { timeout: 3000 }
+      );
+
+      this.logger.debug(`✅ UI call notification sent to operator ${operatorId}`);
+    } catch (error) {
+      this.logger.warn(`⚠️ Failed to send UI call notification: ${error.message}`);
+    }
+  }
+
   isConfigured(): boolean {
     return !!this.webhookToken;
   }
