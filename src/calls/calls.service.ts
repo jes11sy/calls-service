@@ -96,15 +96,27 @@ export class CallsService {
             connectionStatus: true,
           },
         },
+        master: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       skip,
       take: limit,
     });
 
+    // Преобразуем данные для совместимости с фронтендом (добавляем masterName)
+    const callsWithMasterName = calls.map(call => ({
+      ...call,
+      masterName: call.master?.name || null,
+    }));
+
     return {
       success: true,
       data: {
-        calls,
+        calls: callsWithMasterName,
         pagination: {
           total,
           page,
@@ -161,6 +173,12 @@ export class CallsService {
             isOnline: true,
           },
         },
+        master: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -170,7 +188,10 @@ export class CallsService {
 
     return {
       success: true,
-      data: call,
+      data: {
+        ...call,
+        masterName: call.master?.name || null,
+      },
     };
   }
 
@@ -286,13 +307,25 @@ export class CallsService {
             isOnline: true,
           },
         },
+        master: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       take: 50,
     });
 
+    // Преобразуем данные для совместимости с фронтендом (добавляем masterName)
+    const callsWithMasterName = calls.map(call => ({
+      ...call,
+      masterName: call.master?.name || null,
+    }));
+
     return {
       success: true,
-      data: calls,
+      data: callsWithMasterName,
     };
   }
 
@@ -418,8 +451,20 @@ export class CallsService {
             connectionStatus: true,
           },
         },
+        master: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
+
+    // Преобразуем звонки с masterName
+    const callsWithMasterName = calls.map(call => ({
+      ...call,
+      masterName: call.master?.name || null,
+    }));
 
     // 4. Группируем звонки по номеру телефона
     const groupedCalls: Record<string, any[]> = {};
@@ -430,7 +475,7 @@ export class CallsService {
     }
     
     // Затем заполняем группы звонками
-    for (const call of calls) {
+    for (const call of callsWithMasterName) {
       if (groupedCalls[call.phoneClient]) {
         groupedCalls[call.phoneClient].push(call);
       }

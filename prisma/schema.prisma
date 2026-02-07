@@ -30,6 +30,7 @@ model Call {
   operator        CallcentreOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
   phone           Phone?             @relation(fields: [phoneAts], references: [number], onDelete: SetNull)
   avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name], onDelete: SetNull)
+  master          Master?            @relation(fields: [masterId], references: [id], onDelete: SetNull)
   
   @@map("calls")
   @@index([city])
@@ -157,6 +158,28 @@ model Avito {
   calls                   Call[]    @relation("AvitoCalls")
   
   @@map("avito")
+}
+
+// Master model (read-only, shared with masters-service)
+model Master {
+  id          Int      @id @default(autoincrement())
+  cities      String[]
+  name        String   @db.VarChar(255)
+  login       String?  @unique @db.VarChar(255)
+  password    String?  @db.VarChar(255)
+  passportDoc String?  @map("passport_doc") @db.VarChar(500)
+  contractDoc String?  @map("contract_doc") @db.VarChar(500)
+  statusWork  String   @map("status_work") @db.VarChar(50)
+  dateCreate  DateTime @default(now()) @map("date_create")
+  note        String?  @db.Text
+  tgId        String?  @map("tg_id") @db.VarChar(50)
+  chatId      String?  @map("chat_id") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  calls       Call[]
+
+  @@map("master")
 }
 
 // Логи ошибок (shared with auth-service)
