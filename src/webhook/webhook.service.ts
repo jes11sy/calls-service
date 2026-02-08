@@ -466,20 +466,36 @@ export class WebhookService {
       });
     }
 
-    // ✅ UI уведомление оператору о входящем звонке (когда начинает звонить)
-    if (callDirection === 'inbound' && operator?.id) {
+    // ✅ UI уведомление о входящем звонке (когда начинает звонить)
+    if (callDirection === 'inbound') {
       const city = phone?.city || operator?.city || 'Не указан';
-      this.logger.log(`Sending INCOMING call notification to operator ${operator.id}`);
-      this.realtimeService.sendCallNotificationToOperator(
-        operator.id,
-        0, // call.id ещё не известен
-        phoneClient,
-        'call_incoming',
-        city,
-        phone?.avitoName,
-      ).then(() => {
-        this.logger.log(`Incoming call notification sent successfully`);
-      }).catch(err => this.logger.warn(`Incoming call notification failed: ${err.message}`));
+      
+      if (operator?.id) {
+        // Оператор найден — уведомление конкретному оператору
+        this.logger.log(`Sending INCOMING call notification to operator ${operator.id}`);
+        this.realtimeService.sendCallNotificationToOperator(
+          operator.id,
+          0,
+          phoneClient,
+          'call_incoming',
+          city,
+          phone?.avitoName,
+        ).then(() => {
+          this.logger.log(`Incoming call notification sent successfully`);
+        }).catch(err => this.logger.warn(`Incoming call notification failed: ${err.message}`));
+      } else {
+        // Оператор не найден — уведомление всем операторам
+        this.logger.log(`Operator not found, broadcasting INCOMING call notification to all operators`);
+        this.realtimeService.broadcastCallNotificationToAllOperators(
+          0,
+          phoneClient,
+          'call_incoming',
+          city,
+          phone?.avitoName,
+        ).then(() => {
+          this.logger.log(`Incoming call notification broadcasted to all operators`);
+        }).catch(err => this.logger.warn(`Broadcast incoming call notification failed: ${err.message}`));
+      }
     }
 
     return {

@@ -145,6 +145,35 @@ export class RealtimeService {
     }
   }
 
+  /**
+   * Отправить UI-уведомление всем операторам о звонке (когда оператор не определён)
+   */
+  async broadcastCallNotificationToAllOperators(
+    callId: number,
+    phoneClient: string,
+    callType: 'call_incoming' | 'call_missed',
+    city?: string,
+    avitoName?: string,
+  ): Promise<void> {
+    try {
+      await this.axiosInstance.post(
+        `${this.realtimeUrl}/api/v1/notifications/internal/operators/call`,
+        {
+          callId,
+          phoneClient,
+          callType,
+          city,
+          avitoName,
+        },
+        { timeout: 3000 }
+      );
+
+      this.logger.debug(`✅ UI ${callType} notification broadcasted to all operators`);
+    } catch (error) {
+      this.logger.warn(`⚠️ Failed to broadcast UI call notification: ${error.message}`);
+    }
+  }
+
   isConfigured(): boolean {
     return !!this.webhookToken;
   }
