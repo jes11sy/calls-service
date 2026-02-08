@@ -392,7 +392,9 @@ export class WebhookService {
         this.logger.log(`Broadcasted new call: ${call.id}`);
         
         // ✅ UI уведомление оператору о входящем звонке
+        this.logger.log(`Checking UI notification: callDirection=${callDirectionType}, operatorId=${operator.id}`);
         if (callDirectionType === 'inbound' && operator.id) {
+          this.logger.log(`Sending UI notification to operator ${operator.id} for call ${call.id}`);
           this.realtimeService.sendCallNotificationToOperator(
             operator.id,
             call.id,
@@ -400,7 +402,9 @@ export class WebhookService {
             callDirectionType,
             city,
             phone?.avitoName,
-          ).catch(err => this.logger.warn(`UI notification failed: ${err.message}`));
+          ).then(() => {
+            this.logger.log(`UI notification sent successfully for call ${call.id}`);
+          }).catch(err => this.logger.warn(`UI notification failed: ${err.message}`));
         }
       } else {
         // Broadcast обновления существующего звонка
@@ -432,27 +436,50 @@ export class WebhookService {
 
     this.logger.log(`Call appeared: ${call_id}, direction: ${callDirection}`);
 
+    const phoneAts = to?.line_number || to?.number || to;
+    const phoneClient = from?.number || from;
+
     // Проверяем, существует ли звонок
     const existingCall = await this.prisma.call.findUnique({
       where: { callId: call_id },
     });
 
+    // Ищем phone для получения avitoName и города
+    const phone = await this.prisma.phone.findUnique({
+      where: { number: phoneAts },
+    });
+
+    // Находим оператора по SIP
+    const operatorSipSource = to?.number || to;
+    const sipUsername = this.mangoService.extractSipUsername(operatorSipSource);
+    const operator = await this.findOperatorBySip(sipUsername);
+
     if (existingCall) {
-      const phoneAts = to?.line_number || to?.number || to;
-      // Ищем phone для получения avitoName
-      const phone = await this.prisma.phone.findUnique({
-        where: { number: phoneAts },
-      });
-      
       // Обновляем данные
       await this.prisma.call.update({
         where: { callId: call_id },
         data: {
-          phoneClient: from?.number || from,
+          phoneClient: phoneClient,
           phoneAts: phoneAts,
           avitoName: phone?.avitoName || null,
         },
       });
+    }
+
+    // ✅ UI уведомление оператору о входящем звонке (когда начинает звонить)
+    if (callDirection === 'inbound' && operator?.id) {
+      const city = phone?.city || operator?.city || 'Не указан';
+      this.logger.log(`Sending UI notification (appeared) to operator ${operator.id}`);
+      this.realtimeService.sendCallNotificationToOperator(
+        operator.id,
+        0, // call.id ещё не известен
+        phoneClient,
+        'inbound',
+        city,
+        phone?.avitoName,
+      ).then(() => {
+        this.logger.log(`UI notification (appeared) sent successfully`);
+      }).catch(err => this.logger.warn(`UI notification (appeared) failed: ${err.message}`));
     }
 
     return {
