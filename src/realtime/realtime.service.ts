@@ -114,13 +114,14 @@ export class RealtimeService {
   }
 
   /**
-   * Отправить UI-уведомление оператору о входящем звонке
+   * Отправить UI-уведомление оператору о звонке
+   * @param callType - тип уведомления: 'call_incoming' или 'call_missed'
    */
   async sendCallNotificationToOperator(
     operatorId: number,
     callId: number,
     phoneClient: string,
-    callDirection: 'inbound' | 'outbound' | 'callback',
+    callType: 'call_incoming' | 'call_missed',
     city?: string,
     avitoName?: string,
   ): Promise<void> {
@@ -131,14 +132,14 @@ export class RealtimeService {
           operatorId,
           callId,
           phoneClient,
-          callDirection,
+          callType,
           city,
           avitoName,
         },
         { timeout: 3000 }
       );
 
-      this.logger.debug(`✅ UI call notification sent to operator ${operatorId}`);
+      this.logger.debug(`✅ UI ${callType} notification sent to operator ${operatorId}`);
     } catch (error) {
       this.logger.warn(`⚠️ Failed to send UI call notification: ${error.message}`);
     }
