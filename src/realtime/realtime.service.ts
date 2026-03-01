@@ -31,10 +31,11 @@ export class RealtimeService {
           token: this.webhookToken,
           call: {
             id: call.id,
-            rk: call.rk,
-            city: call.city,
+            rkId: call.rkId,
+            rkName: call.rk?.name ?? null,
+            cityId: call.cityId,
+            cityName: call.city?.name ?? null,
             callDirection: call.callDirection,
-            avitoName: call.avitoName,
             callId: call.callId,
             phoneClient: call.phoneClient,
             phoneAts: call.phoneAts,
@@ -42,7 +43,7 @@ export class RealtimeService {
             status: call.status,
             operatorId: call.operatorId,
             duration: call.duration,
-            operator: call.operator, // Вложенный объект оператора
+            operator: call.operator,
           },
           rooms,
         }
@@ -122,8 +123,8 @@ export class RealtimeService {
     callId: number,
     phoneClient: string,
     callType: 'call_incoming' | 'call_missed',
-    city?: string,
-    avitoName?: string,
+    cityId?: number,
+    rkName?: string,
   ): Promise<void> {
     try {
       await this.axiosInstance.post(
@@ -133,8 +134,8 @@ export class RealtimeService {
           callId,
           phoneClient,
           callType,
-          city,
-          avitoName,
+          cityId,
+          rkName,
         },
         { timeout: 3000 }
       );
@@ -152,8 +153,8 @@ export class RealtimeService {
     callId: number,
     phoneClient: string,
     callType: 'call_incoming' | 'call_missed',
-    city?: string,
-    avitoName?: string,
+    cityId?: number,
+    rkName?: string,
   ): Promise<void> {
     try {
       await this.axiosInstance.post(
@@ -162,8 +163,8 @@ export class RealtimeService {
           callId,
           phoneClient,
           callType,
-          city,
-          avitoName,
+          cityId,
+          rkName,
         },
         { timeout: 3000 }
       );

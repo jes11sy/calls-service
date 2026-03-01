@@ -1,55 +1,47 @@
-import { IsString, IsNotEmpty, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MaxLength, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePhoneDto {
-  @ApiProperty({ description: 'Phone number', example: '+7 (495) 123-45-67' })
+  @ApiProperty({ description: 'Phone number', example: '+74951234567' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
+  @MaxLength(20)
   phoneNumber: string;
 
-  @ApiProperty({ description: 'Campaign name', example: 'РК_Москва_1' })
-  @IsString()
+  @ApiProperty({ description: 'ID рекламной кампании' })
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  @MaxLength(100)
-  campaign: string;
+  @Min(1)
+  rkId: number;
 
-  @ApiProperty({ description: 'City', example: 'Москва' })
-  @IsString()
+  @ApiProperty({ description: 'ID города' })
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  @MaxLength(50)
-  city: string;
-
-  @ApiProperty({ description: 'Avito account name', example: 'Avito_Moscow_Main', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(100)
-  accountName?: string;
+  @Min(1)
+  cityId: number;
 }
 
 export class UpdatePhoneDto {
-  @ApiProperty({ description: 'Phone number', example: '+7 (495) 123-45-67' })
+  @ApiProperty({ description: 'Phone number', example: '+74951234567' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
+  @MaxLength(20)
   phoneNumber: string;
 
-  @ApiProperty({ description: 'Campaign name', example: 'РК_Москва_1' })
-  @IsString()
+  @ApiProperty({ description: 'ID рекламной кампании' })
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  @MaxLength(100)
-  campaign: string;
+  @Min(1)
+  rkId: number;
 
-  @ApiProperty({ description: 'City', example: 'Москва' })
-  @IsString()
+  @ApiProperty({ description: 'ID города' })
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  @MaxLength(50)
-  city: string;
-
-  @ApiProperty({ description: 'Avito account name', example: 'Avito_Moscow_Main', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(100)
-  accountName?: string;
+  @Min(1)
+  cityId: number;
 }
-

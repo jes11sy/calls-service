@@ -1,27 +1,27 @@
-import { IsString, IsNumber, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCallDto {
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({ required: false, description: 'ID рекламной кампании' })
+  @Type(() => Number)
+  @IsNumber()
   @IsOptional()
-  rk?: string;
+  @Min(1)
+  rkId?: number;
 
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({ required: false, description: 'ID города' })
+  @Type(() => Number)
+  @IsNumber()
   @IsOptional()
-  city?: string;
+  @Min(1)
+  cityId?: number;
 
   @ApiProperty({ required: false, enum: ['inbound', 'outbound', 'callback'] })
   @IsString()
   @IsOptional()
   @IsIn(['inbound', 'outbound', 'callback'])
   callDirection?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  avitoName?: string;
 
   @ApiProperty({ required: false })
   @IsString()

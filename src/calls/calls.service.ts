@@ -16,28 +16,21 @@ export class CallsService {
   ) {}
 
   async getCalls(query: any, user: any) {
-    const { status, operatorId, startDate, endDate, phone, city } = query;
+    const { status, operatorId, startDate, endDate, phone, cityId, rkId } = query;
 
     const where: any = {};
 
-    // 🔒 Фильтрация по оператору: operator видит свои звонки + звонки "Система" (ID=1, callback-звонки)
-    if (user.role === 'operator' || user.role === 'callcentre_operator') {
+    // Оператор видит свои звонки + звонки "Система" (ID=1)
+    if (user.role === 'operator') {
       where.operatorId = { in: [user.userId, 1] };
     } else if (operatorId) {
       where.operatorId = +operatorId;
     }
 
-    if (status) {
-      where.status = status;
-    }
-
-    if (city) {
-      where.city = city;
-    }
-
-    if (phone) {
-      where.phoneClient = { contains: phone };
-    }
+    if (status) where.status = status;
+    if (cityId) where.cityId = +cityId;
+    if (rkId) where.rkId = +rkId;
+    if (phone) where.phoneClient = { contains: phone };
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -45,12 +38,10 @@ export class CallsService {
       if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
-    // Pagination
     const page = query.page ? +query.page : 1;
     const limit = query.limit ? +query.limit : 20;
     const skip = (page - 1) * limit;
 
-    // Get total count
     const total = await this.prisma.call.count({ where });
 
     const calls = await this.prisma.call.findMany({
@@ -58,10 +49,11 @@ export class CallsService {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        rk: true,
-        city: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true, code: true } },
         callDirection: true,
-        avitoName: true,
         phoneClient: true,
         phoneAts: true,
         masterId: true,
@@ -70,44 +62,22 @@ export class CallsService {
         duration: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
         operator: {
-          select: {
-            id: true,
-            name: true,
-            login: true,
-          },
+          select: { id: true, name: true, login: true },
         },
         phone: {
-          select: {
-            id: true,
-            number: true,
-            rk: true,
-            city: true,
-            avitoName: true,
-          },
-        },
-        avito: {
-          select: {
-            id: true,
-            name: true,
-            connectionStatus: true,
-          },
+          select: { id: true, number: true, cityId: true, rkId: true },
         },
         master: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
       },
       skip,
       take: limit,
     });
 
-    // Преобразуем данные для совместимости с фронтендом (добавляем masterName)
     const callsWithMasterName = calls.map(call => ({
       ...call,
       masterName: call.master?.name || null,
@@ -117,12 +87,7 @@ export class CallsService {
       success: true,
       data: {
         calls: callsWithMasterName,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
       },
     };
   }
@@ -132,10 +97,11 @@ export class CallsService {
       where: { id },
       select: {
         id: true,
-        rk: true,
-        city: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true, code: true } },
         callDirection: true,
-        avitoName: true,
         phoneClient: true,
         phoneAts: true,
         masterId: true,
@@ -144,64 +110,34 @@ export class CallsService {
         duration: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
         operator: {
-          select: {
-            id: true,
-            name: true,
-            login: true,
-            city: true,
-            sipAddress: true,
-          },
+          select: { id: true, name: true, login: true, sipAddress: true },
         },
         phone: {
-          select: {
-            id: true,
-            number: true,
-            rk: true,
-            city: true,
-            avitoName: true,
-          },
-        },
-        avito: {
-          select: {
-            id: true,
-            name: true,
-            connectionStatus: true,
-            isOnline: true,
-          },
+          select: { id: true, number: true, cityId: true, rkId: true },
         },
         master: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
       },
     });
 
-    if (!call) {
-      throw new NotFoundException('Call not found');
-    }
+    if (!call) throw new NotFoundException('Call not found');
 
     return {
       success: true,
-      data: {
-        ...call,
-        masterName: call.master?.name || null,
-      },
+      data: { ...call, masterName: call.master?.name || null },
     };
   }
 
   async createCall(dto: CreateCallDto, user: any) {
     const call = await this.prisma.call.create({
       data: {
-        rk: dto.rk || 'MANUAL',
-        city: dto.city || '',
+        cityId: dto.cityId || 1,
+        rkId: dto.rkId || 1,
         callDirection: dto.callDirection || 'inbound',
-        avitoName: dto.avitoName,
         callId: dto.callId || `MANUAL-${Date.now()}`,
         phoneClient: dto.phoneClient,
         phoneAts: dto.phoneAts || '',
@@ -210,12 +146,7 @@ export class CallsService {
         operatorId: user.userId,
       },
       include: {
-        operator: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        operator: { select: { id: true, name: true } },
       },
     });
 
@@ -224,17 +155,12 @@ export class CallsService {
       status: dto.status,
     });
 
-    // 📡 Broadcast нового звонка через WebSocket
     await this.realtimeService.broadcastNewCall(call, [
       'operators',
       `operator:${user.userId}`,
     ]);
 
-    return {
-      success: true,
-      message: 'Call created successfully',
-      data: call,
-    };
+    return { success: true, message: 'Call created successfully', data: call };
   }
 
   async updateCall(id: number, dto: UpdateCallDto) {
@@ -247,29 +173,22 @@ export class CallsService {
       },
     });
 
-    this.auditLogger.logCallUpdated(call.id, undefined, undefined, {
-      changes: dto,
-    });
+    this.auditLogger.logCallUpdated(call.id, undefined, undefined, { changes: dto });
 
-    return {
-      success: true,
-      message: 'Call updated successfully',
-      data: call,
-    };
+    return { success: true, message: 'Call updated successfully', data: call };
   }
 
   async getCallsByPhone(phone: string) {
     const calls = await this.prisma.call.findMany({
-      where: {
-        phoneClient: { contains: phone },
-      },
+      where: { phoneClient: { contains: phone } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        rk: true,
-        city: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true } },
         callDirection: true,
-        avitoName: true,
         phoneClient: true,
         phoneAts: true,
         masterId: true,
@@ -278,93 +197,36 @@ export class CallsService {
         duration: true,
         recordingPath: true,
         recordingProcessedAt: true,
-        // mangoData: true, // Excluded by default (large JSON)
         createdAt: true,
         updatedAt: true,
-        operator: {
-          select: {
-            id: true,
-            name: true,
-            login: true,
-            city: true,
-            sipAddress: true,
-          },
-        },
-        phone: {
-          select: {
-            id: true,
-            number: true,
-            rk: true,
-            city: true,
-            avitoName: true,
-          },
-        },
-        avito: {
-          select: {
-            id: true,
-            name: true,
-            connectionStatus: true,
-            isOnline: true,
-          },
-        },
-        master: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        operator: { select: { id: true, name: true, login: true, sipAddress: true } },
+        phone: { select: { id: true, number: true } },
+        master: { select: { id: true, name: true } },
       },
       take: 50,
     });
 
-    // Преобразуем данные для совместимости с фронтендом (добавляем masterName)
-    const callsWithMasterName = calls.map(call => ({
-      ...call,
-      masterName: call.master?.name || null,
-    }));
-
     return {
       success: true,
-      data: callsWithMasterName,
+      data: calls.map(call => ({ ...call, masterName: call.master?.name || null })),
     };
   }
 
-  /**
-   * Получение звонков с группировкой по номеру телефона клиента
-   * Пагинация идёт по группам, а не по отдельным звонкам
-   */
   async getCallsGrouped(query: any, user: any) {
-    const { status, operatorId, startDate, endDate, phone, city, rk, avitoName } = query;
+    const { status, operatorId, startDate, endDate, phone, cityId, rkId } = query;
 
-    // Базовые условия фильтрации
     const where: any = {};
 
-    // 🔒 Фильтрация по оператору: operator видит свои звонки + звонки "Система" (ID=1, callback-звонки)
-    if (user.role === 'operator' || user.role === 'callcentre_operator') {
+    if (user.role === 'operator') {
       where.operatorId = { in: [user.userId, 1] };
     } else if (operatorId) {
       where.operatorId = +operatorId;
     }
 
-    if (status && status !== 'all') {
-      where.status = status;
-    }
-
-    if (city) {
-      where.city = { contains: city, mode: 'insensitive' };
-    }
-
-    if (rk) {
-      where.rk = { contains: rk, mode: 'insensitive' };
-    }
-
-    if (avitoName) {
-      where.avitoName = { contains: avitoName, mode: 'insensitive' };
-    }
-
-    if (phone) {
-      where.phoneClient = { contains: phone };
-    }
+    if (status && status !== 'all') where.status = status;
+    if (cityId) where.cityId = +cityId;
+    if (rkId) where.rkId = +rkId;
+    if (phone) where.phoneClient = { contains: phone };
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -372,52 +234,34 @@ export class CallsService {
       if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
-    // Пагинация по группам
     const page = query.page ? +query.page : 1;
-    const groupsPerPage = query.limit ? +query.limit : 10; // По умолчанию 10 групп на странице
+    const groupsPerPage = query.limit ? +query.limit : 10;
     const skip = (page - 1) * groupsPerPage;
-
-    // Сортировка
-    const sortBy = query.sortBy || 'createdAt';
     const sortOrder = query.sortOrder || 'desc';
 
-    // 1. Получаем уникальные номера телефонов с последним звонком для сортировки
     const uniquePhones = await this.prisma.call.groupBy({
       by: ['phoneClient'],
       where,
-      _max: {
-        createdAt: true,
-      },
-      _count: {
-        id: true,
-      },
-      orderBy: {
-        _max: {
-          createdAt: sortOrder as 'asc' | 'desc',
-        },
-      },
+      _max: { createdAt: true },
+      _count: { id: true },
+      orderBy: { _max: { createdAt: sortOrder as 'asc' | 'desc' } },
     });
 
     const totalGroups = uniquePhones.length;
     const totalPages = Math.ceil(totalGroups / groupsPerPage);
-
-    // 2. Берём только нужные группы для текущей страницы
     const paginatedPhones = uniquePhones.slice(skip, skip + groupsPerPage);
     const phoneNumbers = paginatedPhones.map(p => p.phoneClient);
 
-    // 3. Получаем все звонки для этих номеров
     const calls = await this.prisma.call.findMany({
-      where: {
-        ...where,
-        phoneClient: { in: phoneNumbers },
-      },
+      where: { ...where, phoneClient: { in: phoneNumbers } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        rk: true,
-        city: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true } },
         callDirection: true,
-        avitoName: true,
         phoneClient: true,
         phoneAts: true,
         masterId: true,
@@ -428,110 +272,49 @@ export class CallsService {
         recordingProcessedAt: true,
         createdAt: true,
         updatedAt: true,
-        operator: {
-          select: {
-            id: true,
-            name: true,
-            login: true,
-          },
-        },
-        phone: {
-          select: {
-            id: true,
-            number: true,
-            rk: true,
-            city: true,
-            avitoName: true,
-          },
-        },
-        avito: {
-          select: {
-            id: true,
-            name: true,
-            connectionStatus: true,
-          },
-        },
-        master: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        operator: { select: { id: true, name: true, login: true } },
+        master: { select: { id: true, name: true } },
       },
     });
 
-    // Преобразуем звонки с masterName
     const callsWithMasterName = calls.map(call => ({
       ...call,
       masterName: call.master?.name || null,
     }));
 
-    // 4. Группируем звонки по номеру телефона
     const groupedCalls: Record<string, any[]> = {};
-    
-    // Сначала создаём пустые группы в правильном порядке
-    for (const phone of phoneNumbers) {
-      groupedCalls[phone] = [];
-    }
-    
-    // Затем заполняем группы звонками
+    for (const ph of phoneNumbers) groupedCalls[ph] = [];
     for (const call of callsWithMasterName) {
-      if (groupedCalls[call.phoneClient]) {
-        groupedCalls[call.phoneClient].push(call);
-      }
+      if (groupedCalls[call.phoneClient]) groupedCalls[call.phoneClient].push(call);
     }
 
-    // 5. Подсчёт статистики
-    const totalCalls = await this.prisma.call.count({ where });
-    const missedCalls = await this.prisma.call.count({ 
-      where: { ...where, status: 'missed' } 
-    });
-    const answeredCalls = await this.prisma.call.count({ 
-      where: { ...where, status: 'answered' } 
-    });
+    const [totalCalls, missedCalls, answeredCalls] = await Promise.all([
+      this.prisma.call.count({ where }),
+      this.prisma.call.count({ where: { ...where, status: 'missed' } }),
+      this.prisma.call.count({ where: { ...where, status: 'answered' } }),
+    ]);
 
-    // Звонки за сегодня
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayCalls = await this.prisma.call.count({
-      where: {
-        ...where,
-        createdAt: { gte: today },
-      },
+      where: { ...where, createdAt: { gte: today } },
     });
 
     return {
       success: true,
       data: {
         groupedCalls,
-        stats: {
-          totalCalls,
-          totalGroups,
-          missedCalls,
-          answeredCalls,
-          todayCalls,
-        },
-        pagination: {
-          page,
-          limit: groupsPerPage,
-          totalGroups,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1,
-        },
+        stats: { totalCalls, totalGroups, missedCalls, answeredCalls, todayCalls },
+        pagination: { page, limit: groupsPerPage, totalGroups, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
       },
     };
   }
 
   async getCallStats(query: any) {
-    const { startDate, endDate, city } = query;
+    const { startDate, endDate, cityId } = query;
 
     const where: any = {};
-
-    if (city) {
-      where.city = city;
-    }
-
+    if (cityId) where.cityId = +cityId;
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -542,10 +325,7 @@ export class CallsService {
       this.prisma.call.count({ where }),
       this.prisma.call.count({ where: { ...where, status: 'answered' } }),
       this.prisma.call.count({ where: { ...where, status: 'missed' } }),
-      this.prisma.call.aggregate({
-        where: { ...where, status: 'answered' },
-        _sum: { duration: true },
-      }),
+      this.prisma.call.aggregate({ where: { ...where, status: 'answered' }, _sum: { duration: true } }),
     ]);
 
     return {
@@ -562,9 +342,7 @@ export class CallsService {
 
   async updateMultipleCalls(callIds: number[], data: Partial<UpdateCallDto>) {
     const updated = await this.prisma.call.updateMany({
-      where: {
-        id: { in: callIds },
-      },
+      where: { id: { in: callIds } },
       data: {
         ...(data.status && { status: data.status }),
         ...(data.duration !== undefined && { duration: data.duration }),
@@ -578,55 +356,37 @@ export class CallsService {
       metadata: { callIds, count: updated.count, changes: data },
     });
 
-    return {
-      success: true,
-      message: `Updated ${updated.count} calls`,
-      data: { count: updated.count },
-    };
+    return { success: true, message: `Updated ${updated.count} calls`, data: { count: updated.count } };
   }
 
   async getCallsByOrderId(orderId: number, user?: any) {
-    // Получаем заказ
     const order = await this.prisma.order.findUnique({
-      where: { id: orderId }
+      where: { id: orderId },
     });
 
-    if (!order) {
-      throw new NotFoundException('Заказ не найден');
-    }
+    if (!order) throw new NotFoundException('Заказ не найден');
 
-    // ✅ FIX: RBAC проверка доступа к заказу
     if (user) {
       if (user.role === 'master' && order.masterId !== user.userId) {
         throw new ForbiddenException('У вас нет доступа к этому заказу');
       }
-      
-      if (user.role === 'director' && user.cities && !user.cities.includes(order.city)) {
+      if (user.role === 'director' && user.cityIds && !user.cityIds.includes(order.cityId)) {
         throw new ForbiddenException('Заказ не в вашем городе');
       }
     }
 
-    let calls = [];
+    let calls: any[] = [];
 
     if (order.callId) {
-      // Парсим массив ID из строки (например: "145,182,215")
       const callIds = order.callId.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-      
+
       if (callIds.length > 0) {
-        // Ищем звонки по массиву ID и фильтруем только те, у которых есть запись
         calls = await this.prisma.call.findMany({
-          where: {
-            id: {
-              in: callIds
-            },
-            recordingPath: {
-              not: null // Только звонки с записями
-            }
-          },
+          where: { id: { in: callIds }, recordingPath: { not: null } },
           select: {
             id: true,
-            rk: true,
-            city: true,
+            cityId: true,
+            rkId: true,
             callDirection: true,
             phoneClient: true,
             phoneAts: true,
@@ -636,64 +396,33 @@ export class CallsService {
             recordingPath: true,
             createdAt: true,
             updatedAt: true,
-            operator: {
-              select: {
-                id: true,
-                name: true,
-                login: true
-              }
-            }
+            operator: { select: { id: true, name: true, login: true } },
           },
-          orderBy: {
-            createdAt: 'desc'
-          }
+          orderBy: { createdAt: 'desc' },
         });
       }
     }
 
-    // Добавляем recordingUrl для совместимости с фронтендом
-    const callsWithRecordingUrl = calls.map(call => ({
-      ...call,
-      recordingUrl: call.recordingPath
-    }));
-
     return {
       success: true,
-      data: callsWithRecordingUrl
+      data: calls.map(call => ({ ...call, recordingUrl: call.recordingPath })),
     };
   }
 
-  /**
-   * Инициирует callback звонок мастеру с последующим соединением с клиентом
-   */
   async initiateCallback(dto: InitiateCallbackDto, user: any) {
     try {
-      // 1. Получаем заказ напрямую из БД (та же БД, что и у orders-service)
       const order = await this.prisma.order.findUnique({
         where: { id: dto.orderId },
-        select: {
-          id: true,
-          phone: true,
-          clientName: true,
-          rk: true,
-          city: true,
-          callId: true,
-        },
+        select: { id: true, phone: true, clientName: true, rkId: true, cityId: true, callId: true },
       });
 
-      if (!order) {
-        throw new NotFoundException('Заказ не найден');
-      }
+      if (!order) throw new NotFoundException('Заказ не найден');
+      if (!order.phone) throw new BadRequestException('У заказа отсутствует номер телефона клиента');
 
-      if (!order.phone) {
-        throw new BadRequestException('У заказа отсутствует номер телефона клиента');
-      }
-
-      // 2. Определяем phoneAts с fallback стратегией
       let phoneAts: string | null = null;
       let callSource = '';
 
-      // Приоритет 1: Если у заказа есть callId - используем звонок из заказа
+      // Приоритет 1: звонок из заказа
       if (order.callId) {
         const orderCall = await this.prisma.call.findUnique({
           where: { callId: order.callId },
@@ -705,7 +434,7 @@ export class CallsService {
         }
       }
 
-      // Приоритет 2: Ищем последний звонок от этого номера
+      // Приоритет 2: последний звонок от клиента
       if (!phoneAts) {
         const lastCall = await this.prisma.call.findFirst({
           where: { phoneClient: order.phone },
@@ -718,13 +447,10 @@ export class CallsService {
         }
       }
 
-      // Приоритет 3: Берём дефолтный номер для города и РК из таблицы phones
+      // Приоритет 3: дефолтный номер для города и РК
       if (!phoneAts) {
         const defaultPhone = await this.prisma.phone.findFirst({
-          where: {
-            city: order.city,
-            rk: order.rk,
-          },
+          where: { cityId: order.cityId, rkId: order.rkId },
           select: { number: true },
         });
         if (defaultPhone?.number) {
@@ -733,43 +459,32 @@ export class CallsService {
         }
       }
 
-      // Если вообще ничего не нашли - ошибка
       if (!phoneAts) {
         throw new BadRequestException(
-          `Не найден номер АТС для звонка. Клиент не звонил, и нет дефолтного номера для города "${order.city}" и РК "${order.rk}".`
+          `Не найден номер АТС для звонка. Клиент не звонил, и нет дефолтного номера для cityId=${order.cityId} и rkId=${order.rkId}.`
         );
       }
 
-      // 3. Инициируем callback через Mango Office
       const commandId = `callback_${dto.orderId}_${Date.now()}`;
-      
-      // Форматируем номера для Mango (добавляем + если нет)
       const formattedClientPhone = order.phone.startsWith('+') ? order.phone : `+${order.phone}`;
       const formattedMasterPhone = dto.masterPhone.startsWith('+') ? dto.masterPhone : `+${dto.masterPhone}`;
       const formattedPhoneAts = phoneAts.startsWith('+') ? phoneAts : `+${phoneAts}`;
-      
+
       const mangoResult = await this.mangoService.initiateCallback({
-        from: formattedPhoneAts,         // Номер АТС (отобразится у клиента)
-        to_number: formattedClientPhone, // Номер клиента
-        master_phone: formattedMasterPhone, // Номер мастера
+        from: formattedPhoneAts,
+        to_number: formattedClientPhone,
+        master_phone: formattedMasterPhone,
         command_id: commandId,
       });
 
-      // 4. Логируем успешную инициацию
       await this.auditLogger.log({
         action: 'INITIATE_CALLBACK',
         userId: user.id,
         userLogin: user.login,
         resourceType: 'callback',
         metadata: {
-          userRole: user.role,
-          orderId: dto.orderId,
-          masterPhone: dto.masterPhone,
-          clientPhone: order.phone,
-          phoneAts: phoneAts,
-          callSource: callSource, // Откуда взяли номер
-          commandId,
-          mangoCallId: mangoResult.call_id,
+          userRole: user.role, orderId: dto.orderId, masterPhone: dto.masterPhone,
+          clientPhone: order.phone, phoneAts, callSource, commandId, mangoCallId: mangoResult.call_id,
         },
       });
 
@@ -777,41 +492,21 @@ export class CallsService {
         success: true,
         message: 'Звонок инициирован. Ожидайте входящего звонка на ваш номер.',
         data: {
-          commandId,
-          mangoResponse: mangoResult, // Полный ответ от Mango для отладки
-          clientPhone: formattedClientPhone,
-          clientName: order.clientName,
-          phoneAts: formattedPhoneAts,
-          masterPhone: formattedMasterPhone,
-          callSource: callSource,
+          commandId, mangoResponse: mangoResult, clientPhone: formattedClientPhone,
+          clientName: order.clientName, phoneAts: formattedPhoneAts, masterPhone: formattedMasterPhone, callSource,
         },
       };
     } catch (error) {
-      // Логируем ошибку
       await this.auditLogger.log({
         action: 'INITIATE_CALLBACK_ERROR',
         userId: user.id,
         userLogin: user.login,
         resourceType: 'callback',
-        metadata: {
-          userRole: user.role,
-          orderId: dto.orderId,
-          error: error.message,
-        },
+        metadata: { userRole: user.role, orderId: dto.orderId, error: error.message },
       });
 
-      // Пробрасываем ошибку дальше
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException(
-        `Не удалось инициировать звонок: ${error.message}`
-      );
+      if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
+      throw new BadRequestException(`Не удалось инициировать звонок: ${error.message}`);
     }
   }
 }
-
-
-
-

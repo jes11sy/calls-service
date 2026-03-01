@@ -1,9 +1,10 @@
 export interface IRealtimeCallPayload {
   id: number;
-  rk?: string;
-  city?: string;
+  rkId?: number;
+  rkName?: string | null;
+  cityId?: number;
+  cityName?: string | null;
   callDirection?: string;
-  avitoName?: string | null;
   callId?: string | null;
   phoneClient: string;
   phoneAts?: string;

@@ -1,9 +1,8 @@
 export interface ICall {
   id: number;
-  rk: string;
-  city: string;
+  rkId: number;
+  cityId: number;
   callDirection: CallDirection;
-  avitoName: string | null;
   phoneClient: string;
   phoneAts: string;
   masterId: number | null;
@@ -26,24 +25,21 @@ export interface ICallWithOperator extends ICall {
     id: number;
     name: string;
     login: string;
-    city?: string;
+    cityIds?: number[];
     sipAddress?: string | null;
   };
+  rk?: { id: number; name: string } | null;
+  city?: { id: number; name: string } | null;
 }
 
 export interface ICallWithRelations extends ICallWithOperator {
   phone: {
     id: number;
     number: string;
-    rk: string;
-    city: string;
-    avitoName: string | null;
-  } | null;
-  avito: {
-    id: number;
-    name: string;
-    connectionStatus: string | null;
-    isOnline: boolean | null;
+    rkId: number;
+    cityId: number;
+    rk?: { id: number; name: string } | null;
+    city?: { id: number; name: string } | null;
   } | null;
 }
 

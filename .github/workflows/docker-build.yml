@@ -39,7 +39,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/calls-service:${{ github.ref_name }}
             ${{ secrets.DOCKER_USERNAME }}/calls-service:${{ github.ref_name }}-${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/calls-service:latest
+            ${{ github.ref_name == 'main' && format('{0}/calls-service:latest', secrets.DOCKER_USERNAME) || '' }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/calls-service:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/calls-service:buildcache,mode=max
 

@@ -24,7 +24,7 @@ export class PhonesController {
   @Get()
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get all phone numbers' })
   async getPhones(@Query('search') search?: string) {
     return this.phonesService.getPhones(search);
@@ -33,7 +33,7 @@ export class PhonesController {
   @Get('sources')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
   @ApiOperation({ summary: 'Get unique sources (avitoName) from phones' })
   async getSources() {
     return this.phonesService.getSources();
@@ -42,7 +42,7 @@ export class PhonesController {
   @Get('campaigns')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
   @ApiOperation({ summary: 'Get unique campaigns (rk) from phones' })
   async getCampaigns() {
     return this.phonesService.getCampaigns();
@@ -51,7 +51,7 @@ export class PhonesController {
   @Get('cities')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.OPERATOR)
   @ApiOperation({ summary: 'Get unique cities from phones' })
   async getCities() {
     return this.phonesService.getCities();
@@ -60,7 +60,7 @@ export class PhonesController {
   @Get(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN, UserRole.DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN, UserRole.DIRECTOR)
   @ApiOperation({ summary: 'Get phone number by ID' })
   async getPhone(@Param('id') id: string) {
     return this.phonesService.getPhone(+id);
@@ -69,7 +69,7 @@ export class PhonesController {
   @Post()
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Create new phone number' })
   async createPhone(@Body() dto: CreatePhoneDto) {
     return this.phonesService.createPhone(dto);
@@ -78,7 +78,7 @@ export class PhonesController {
   @Put(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update phone number' })
   async updatePhone(@Param('id') id: string, @Body() dto: UpdatePhoneDto) {
     return this.phonesService.updatePhone(+id, dto);
@@ -87,7 +87,7 @@ export class PhonesController {
   @Delete(':id')
   @UseGuards(CookieJwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
-  @Roles(UserRole.ADMIN, UserRole.CALLCENTRE_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete phone number' })
   async deletePhone(@Param('id') id: string) {
     return this.phonesService.deletePhone(+id);

@@ -16,6 +16,20 @@ export class GetCallsQueryDto {
   @Min(1)
   operatorId?: number;
 
+  @ApiProperty({ required: false, description: 'ID города' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  cityId?: number;
+
+  @ApiProperty({ required: false, description: 'ID рекламной кампании' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  rkId?: number;
+
   @ApiProperty({ required: false, example: '2024-01-01' })
   @IsOptional()
   @IsString()
@@ -34,11 +48,6 @@ export class GetCallsQueryDto {
   @Matches(/^\+?[0-9]{10,15}$/, { message: 'phone must be valid phone number' })
   phone?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  city?: string;
-
   @ApiProperty({ required: false, type: Number, default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
@@ -54,4 +63,3 @@ export class GetCallsQueryDto {
   @Min(1)
   page?: number = 1;
 }
-

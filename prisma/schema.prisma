@@ -1,210 +1,246 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["calls_service", "references_service", "auth_service", "orders_service", "audit_logs", "error_logs"]
 }
 
-// Calls from Mango Office
-model Call {
-  id                   Int       @id @default(autoincrement())
-  rk                   String
-  city                 String
-  callDirection        String    @map("call_direction")  // 'inbound' | 'outbound' | 'callback'
-  phoneClient          String    @map("phone_client")
-  phoneAts             String    @map("phone_ats")
-  avitoName            String?   @map("avito_name")
-  masterId             Int?      @map("master_id")       // Привязка к мастеру
-  operatorId           Int       @map("operator_id")
-  status               String                            // 'answered' | 'missed' | 'busy' | 'no_answer'
-  recordingPath        String?   @map("recording_path")
-  recordingProcessedAt DateTime? @map("recording_processed_at")
-  callId               String?   @unique @map("call_id")
-  duration             Int?
-  mangoData            Json?     @map("mango_data")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  
-  operator        CallcentreOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
-  phone           Phone?             @relation(fields: [phoneAts], references: [number], onDelete: SetNull)
-  avito           Avito?             @relation("AvitoCalls", fields: [avitoName], references: [name], onDelete: SetNull)
-  master          Master?            @relation(fields: [masterId], references: [id], onDelete: SetNull)
-  
-  @@map("calls")
-  @@index([city])
-  @@index([callDirection])
-  @@index([createdAt])
-  @@index([operatorId])
-  @@index([masterId])
-  @@index([phoneClient])
-  @@index([phoneAts])
-  @@index([avitoName])
-  @@index([callId])
+// ─────────────────────────────────────────
+// Schema: references_service (read-only)
+// ─────────────────────────────────────────
+
+model City {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique @db.VarChar(100)
+  code     String  @unique @db.VarChar(20)
+  isActive Boolean @default(true) @map("is_active")
+
+  phones  Phone[]
+  calls   Call[]
+
+  @@schema("references_service")
+  @@map("cities")
 }
 
-// Related models
+model Rk {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique @db.VarChar(50)
+  name     String  @db.VarChar(255)
+  isActive Boolean @default(true) @map("is_active")
+
+  phones Phone[]
+  calls  Call[]
+
+  @@schema("references_service")
+  @@map("rk")
+}
+
+// ─────────────────────────────────────────
+// Schema: auth_service (read-only)
+// ─────────────────────────────────────────
+
+model Operator {
+  id         Int     @id @default(autoincrement())
+  name       String  @db.VarChar(255)
+  login      String  @unique @db.VarChar(255)
+  role       String  @db.VarChar(50)
+  status     String  @db.VarChar(50)
+  sipAddress String? @map("sip_address") @db.VarChar(255)
+  cityIds    Int[]   @default([]) @map("city_ids")
+
+  calls Call[]
+
+  @@schema("auth_service")
+  @@map("operators")
+}
+
+model Master {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(255)
+  role String @db.VarChar(50)
+
+  calls Call[]
+
+  @@schema("auth_service")
+  @@map("masters")
+}
+
+// ─────────────────────────────────────────
+// Schema: orders_service (read-only, for cross-service lookups)
+// ─────────────────────────────────────────
+
 model Order {
-  id             Int                @id @default(autoincrement())
-  rk             String
-  city           String
-  avitoName      String?            @map("avito_name")
-  phone          String
-  typeOrder      String             @map("type_order")
-  clientName     String             @map("client_name")
-  address        String
-  dateMeeting    DateTime           @map("date_meeting")
-  typeEquipment  String             @map("type_equipment")
-  problem        String
-  callRecord     String?            @map("call_record")
-  statusOrder    String             @map("status_order")
-  masterId       Int?               @map("master_id")
-  result         Decimal?           @db.Decimal(10, 2)
-  expenditure    Decimal?           @db.Decimal(10, 2)
-  clean          Decimal?           @db.Decimal(10, 2)
-  masterChange   Decimal?           @map("master_change") @db.Decimal(10, 2)
-  bsoDoc         String[]           @default([]) @map("bso_doc")
-  expenditureDoc String[]           @default([]) @map("expenditure_doc")
-  operatorNameId Int                @map("operator_name_id")
-  createDate     DateTime           @map("create_date")
-  closingData    DateTime?          @map("closing_data")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  avitoChatId    String?            @map("avito_chatid")
-  callId         String?            @map("call_id")
-  prepayment     Decimal?           @db.Decimal(10, 2)
-  dateClosmod    DateTime?          @map("date_closmod")
-  comment        String?
-  cashSubmissionStatus String?      @default("Готово") @map("cash_submission_status")
-  cashSubmissionDate   DateTime?    @map("cash_submission_date")
-  cashSubmissionAmount Decimal?     @map("cash_submission_amount") @db.Decimal(10, 2)
-  cashReceiptDoc       String?      @map("cash_receipt_doc")
-  cashApprovedBy       Int?         @map("cash_approved_by")
-  cashApprovedDate     DateTime?    @map("cash_approved_date")
-  
-  @@index([statusOrder, city])
-  @@index([closingData])
-  @@index([masterId, city, closingData])
-  @@index([phone])
-  @@index([createDate, city])
-  @@index([operatorNameId])
-  @@index([createDate])
-  @@index([avitoName])
+  id       Int     @id @default(autoincrement())
+  phone    String  @db.VarChar(20)
+  cityId   Int     @map("city_id")
+  rkId     Int     @map("rk_id")
+  callId   String? @map("call_id") @db.VarChar(100)
+  masterId Int?    @map("master_id")
+  clientName String @map("client_name") @db.VarChar(255)
+
+  @@schema("orders_service")
   @@map("orders")
 }
 
-model CallcentreOperator {
-  id             Int       @id @default(autoincrement())
-  name           String
-  login          String    @unique
-  password       String
-  city           String
-  status         String
-  statusWork     String    @map("status_work")
-  passport       String?
-  contract       String?
-  dateCreate     DateTime  @map("date_create")
-  note           String?
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  sipAddress     String?   @map("sip_address")
-  
-  calls          Call[]
-  
-  @@map("callcentre_operator")
-}
+// ─────────────────────────────────────────
+// Schema: calls_service
+// ─────────────────────────────────────────
 
+/// Телефонные номера (привязка к РК)
 model Phone {
   id        Int      @id @default(autoincrement())
-  number    String   @unique
-  rk        String
-  city      String
-  avitoName String?  @map("avito_name")
+  number    String   @unique @db.VarChar(20)
+  cityId    Int      @map("city_id")
+  rkId      Int      @map("rk_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
-  calls     Call[]
-  
+
+  city City @relation(fields: [cityId], references: [id])
+  rk   Rk   @relation(fields: [rkId], references: [id])
+
+  calls Call[]
+
+  @@index([cityId])
+  @@index([rkId])
+  @@schema("calls_service")
   @@map("phones")
 }
 
-model Avito {
-  id                      Int       @id @default(autoincrement())
-  name                    String    @unique
-  clientId                String    @map("client_id")
-  clientSecret            String    @map("client_secret")
-  proxyType               String?   @map("proxy_type")
-  proxyHost               String?   @map("proxy_host")
-  proxyPort               Int?      @map("proxy_port")
-  proxyLogin              String?   @map("proxy_login")
-  proxyPassword           String?   @map("proxy_password")
-  connectionStatus        String?   @default("not_checked") @map("connection_status")
-  proxyStatus             String?   @default("not_checked") @map("proxy_status")
-  accountBalance          Float?    @default(0) @map("account_balance")
-  adsCount                Int?      @default(0) @map("ads_count")
-  viewsCount              Int?      @default(0) @map("views_count")
-  contactsCount           Int?      @default(0) @map("contacts_count")
-  viewsToday              Int?      @default(0) @map("views_today")
-  contactsToday           Int?      @default(0) @map("contacts_today")
-  lastSyncAt              DateTime? @map("last_sync_at")
-  eternalOnlineEnabled    Boolean?  @default(false) @map("eternal_online_enabled")
-  isOnline                Boolean?  @default(false) @map("is_online")
-  lastOnlineCheck         DateTime? @map("last_online_check")
-  onlineKeepAliveInterval Int?      @default(300) @map("online_keep_alive_interval")
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
-  
-  calls                   Call[]    @relation("AvitoCalls")
-  
-  @@map("avito")
+/// Звонки (интеграция с Mango)
+model Call {
+  id                   Int       @id @default(autoincrement())
+  cityId               Int       @map("city_id")
+  rkId                 Int       @map("rk_id")
+  callDirection        String    @map("call_direction") @db.VarChar(20)
+  status               String    @db.VarChar(50)
+  phoneClient          String    @map("phone_client") @db.VarChar(20)
+  phoneAts             String    @map("phone_ats") @db.VarChar(20)
+  recordingPath        String?   @map("recording_path") @db.VarChar(500)
+  recordingProcessedAt DateTime? @map("recording_processed_at")
+  duration             Int?
+  callId               String?   @unique @map("call_id") @db.VarChar(100)
+  mangoData            Json?     @map("mango_data") @db.JsonB
+  operatorId           Int       @map("operator_id")
+  masterId             Int?      @map("master_id")
+  directorId           Int?      @map("director_id")
+  note                 String?   @db.Text
+  appealId             Int?      @map("appeal_id")
+  phoneNumber          String?   @map("phone_number") @db.VarChar(20)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  city     City      @relation(fields: [cityId], references: [id])
+  rk       Rk        @relation(fields: [rkId], references: [id])
+  operator Operator  @relation(fields: [operatorId], references: [id])
+  master   Master?   @relation(fields: [masterId], references: [id])
+  phone    Phone?    @relation(fields: [phoneNumber], references: [number])
+  appeal   Appeal?   @relation(fields: [appealId], references: [id])
+
+  @@index([operatorId])
+  @@index([masterId])
+  @@index([directorId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([phoneClient])
+  @@index([cityId])
+  @@index([rkId])
+  @@index([callDirection])
+  @@index([appealId])
+  @@index([cityId, createdAt])
+  @@index([cityId, status])
+  @@index([operatorId, createdAt])
+  @@index([phoneClient, createdAt])
+  @@index([cityId, callDirection])
+  @@schema("calls_service")
+  @@map("calls")
 }
 
-// Master model (read-only, shared with masters-service)
-model Master {
-  id          Int      @id @default(autoincrement())
-  cities      String[]
-  name        String   @db.VarChar(255)
-  login       String?  @unique @db.VarChar(255)
-  password    String?  @db.VarChar(255)
-  passportDoc String?  @map("passport_doc") @db.VarChar(500)
-  contractDoc String?  @map("contract_doc") @db.VarChar(500)
-  statusWork  String   @map("status_work") @db.VarChar(50)
-  dateCreate  DateTime @default(now()) @map("date_create")
-  note        String?  @db.Text
-  tgId        String?  @map("tg_id") @db.VarChar(50)
-  chatId      String?  @map("chat_id") @db.VarChar(50)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  calls       Call[]
+/// Обращения клиентов
+model Appeal {
+  id          Int       @id @default(autoincrement())
+  operatorId  Int       @map("operator_id")
+  cityId      Int       @map("city_id")
+  phone       String    @db.VarChar(20)
+  category    String    @db.VarChar(50)
+  description String?   @db.Text
+  result      String?   @db.Text
+  status      String    @default("new") @db.VarChar(50)
+  sourceType  String    @map("source_type") @db.VarChar(20)
+  callId      Int?      @map("call_id")
+  siteOrderId Int?      @map("site_order_id")
+  orderId     Int?      @map("order_id")
+  callbackAt  DateTime? @map("callback_at")
+  closedAt    DateTime? @map("closed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  @@map("master")
+  calls Call[]
+
+  @@index([operatorId])
+  @@index([phone])
+  @@index([status])
+  @@index([category])
+  @@index([callbackAt])
+  @@index([sourceType])
+  @@index([cityId, status])
+  @@index([operatorId, createdAt])
+  @@index([phone, createdAt])
+  @@index([status, callbackAt])
+  @@schema("calls_service")
+  @@map("appeals")
 }
 
-// Логи ошибок (shared with auth-service)
-model ErrorLog {
-  id             Int      @id @default(autoincrement())
-  timestamp      DateTime @default(now())
-  service        String   @db.VarChar(100)
-  errorType      String   @db.VarChar(255)
-  errorMessage   String   @db.Text
-  stackTrace     String?  @db.Text
-  userId         Int?
-  userRole       String?  @db.VarChar(50)
-  requestUrl     String?  @db.VarChar(500)
-  requestMethod  String?  @db.VarChar(10)
-  ip             String?  @db.VarChar(45)
-  userAgent      String?  @db.Text
-  metadata       Json?    @db.JsonB
+// ─────────────────────────────────────────
+// Schema: audit_logs
+// ─────────────────────────────────────────
 
-  @@index([timestamp(sort: Desc)])
-  @@index([service, timestamp(sort: Desc)])
+model AuditCalls {
+  id        Int      @id @default(autoincrement())
+  eventType String   @map("event_type") @db.VarChar(100)
+  userId    Int?     @map("user_id")
+  role      String?  @db.VarChar(50)
+  login     String?  @db.VarChar(255)
+  ip        String   @db.VarChar(45)
+  userAgent String   @map("user_agent") @db.Text
+  success   Boolean
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([success])
+  @@index([role, createdAt])
+  @@schema("audit_logs")
+  @@map("audit_calls")
+}
+
+// ─────────────────────────────────────────
+// Schema: error_logs
+// ─────────────────────────────────────────
+
+model ErrorCalls {
+  id            Int      @id @default(autoincrement())
+  errorType     String   @map("error_type") @db.VarChar(255)
+  errorMessage  String   @map("error_message") @db.Text
+  stackTrace    String?  @map("stack_trace") @db.Text
+  userId        Int?     @map("user_id")
+  userRole      String?  @map("user_role") @db.VarChar(50)
+  requestUrl    String?  @map("request_url") @db.VarChar(500)
+  requestMethod String?  @map("request_method") @db.VarChar(10)
+  ip            String?  @db.VarChar(45)
+  userAgent     String?  @map("user_agent") @db.Text
+  metadata      Json?    @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+
   @@index([errorType])
   @@index([userId])
-  @@map("error_logs")
+  @@index([createdAt])
+  @@index([userRole, createdAt])
+  @@schema("error_logs")
+  @@map("error_calls")
 }
-
-
-
-

@@ -7,48 +7,40 @@ export class PhonesService {
   constructor(private prisma: PrismaService) {}
 
   async getPhones(search?: string) {
-    const where: any = {};
-
-    if (search) {
-      where.OR = [
-        { number: { contains: search, mode: 'insensitive' } },
-        { rk: { contains: search, mode: 'insensitive' } },
-        { avitoName: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
     const phones = await this.prisma.phone.findMany({
-      where,
+      where: search
+        ? {
+            OR: [
+              { number: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : undefined,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         number: true,
-        rk: true,
-        city: true,
-        avitoName: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true, code: true } },
         createdAt: true,
-        _count: {
-          select: {
-            calls: true,
-          },
-        },
+        _count: { select: { calls: true } },
       },
     });
 
-    // Преобразуем данные для фронта
-    const phonesWithCallsCount = phones.map(phone => ({
-      id: phone.id,
-      phoneNumber: phone.number,
-      campaign: phone.rk,
-      city: phone.city,
-      accountName: phone.avitoName || 'Не указан',
-      callsCount: phone._count.calls,
-      createdAt: phone.createdAt,
-    }));
-
     return {
       success: true,
-      data: phonesWithCallsCount,
+      data: phones.map(phone => ({
+        id: phone.id,
+        phoneNumber: phone.number,
+        cityId: phone.cityId,
+        cityName: phone.city?.name,
+        rkId: phone.rkId,
+        rkName: phone.rk?.name,
+        rkCode: phone.rk?.code,
+        callsCount: phone._count.calls,
+        createdAt: phone.createdAt,
+      })),
     };
   }
 
@@ -58,36 +50,29 @@ export class PhonesService {
       select: {
         id: true,
         number: true,
-        rk: true,
-        city: true,
-        avitoName: true,
+        cityId: true,
+        city: { select: { id: true, name: true } },
+        rkId: true,
+        rk: { select: { id: true, name: true, code: true } },
         createdAt: true,
-        _count: {
-          select: {
-            calls: true,
-          },
-        },
+        _count: { select: { calls: true } },
       },
     });
 
-    if (!phone) {
-      throw new NotFoundException('Phone number not found');
-    }
-
-    // Преобразуем данные для фронта
-    const phoneData = {
-      id: phone.id,
-      phoneNumber: phone.number,
-      campaign: phone.rk,
-      city: phone.city,
-      accountName: phone.avitoName || '',
-      callsCount: phone._count.calls,
-      createdAt: phone.createdAt,
-    };
+    if (!phone) throw new NotFoundException('Phone number not found');
 
     return {
       success: true,
-      data: phoneData,
+      data: {
+        id: phone.id,
+        phoneNumber: phone.number,
+        cityId: phone.cityId,
+        cityName: phone.city?.name,
+        rkId: phone.rkId,
+        rkName: phone.rk?.name,
+        callsCount: phone._count.calls,
+        createdAt: phone.createdAt,
+      },
     };
   }
 
@@ -95,123 +80,54 @@ export class PhonesService {
     const phone = await this.prisma.phone.create({
       data: {
         number: dto.phoneNumber,
-        rk: dto.campaign,
-        city: dto.city,
-        avitoName: dto.accountName || null,
+        rkId: dto.rkId,
+        cityId: dto.cityId,
       },
     });
 
-    return {
-      success: true,
-      data: phone,
-    };
+    return { success: true, data: phone };
   }
 
   async updatePhone(id: number, dto: UpdatePhoneDto) {
-    const phone = await this.prisma.phone.findUnique({
-      where: { id },
-    });
-
-    if (!phone) {
-      throw new NotFoundException('Phone number not found');
-    }
+    const phone = await this.prisma.phone.findUnique({ where: { id } });
+    if (!phone) throw new NotFoundException('Phone number not found');
 
     const updated = await this.prisma.phone.update({
       where: { id },
       data: {
         number: dto.phoneNumber,
-        rk: dto.campaign,
-        city: dto.city,
-        avitoName: dto.accountName || null,
+        rkId: dto.rkId,
+        cityId: dto.cityId,
       },
     });
 
-    return {
-      success: true,
-      data: updated,
-    };
+    return { success: true, data: updated };
   }
 
   async deletePhone(id: number) {
-    const phone = await this.prisma.phone.findUnique({
-      where: { id },
-    });
+    const phone = await this.prisma.phone.findUnique({ where: { id } });
+    if (!phone) throw new NotFoundException('Phone number not found');
 
-    if (!phone) {
-      throw new NotFoundException('Phone number not found');
-    }
+    await this.prisma.phone.delete({ where: { id } });
 
-    await this.prisma.phone.delete({
-      where: { id },
-    });
-
-    return {
-      success: true,
-      message: 'Phone number deleted successfully',
-    };
+    return { success: true, message: 'Phone number deleted successfully' };
   }
 
-  /**
-   * Получить уникальные источники (avitoName) из таблицы phones
-   */
-  async getSources() {
-    const phones = await this.prisma.phone.findMany({
-      select: {
-        avitoName: true,
-      },
-      distinct: ['avitoName'],
-      orderBy: {
-        avitoName: 'asc',
-      },
-    });
-
-    // Фильтруем null и пустые строки на уровне JS
-    const sources = phones
-      .map(p => p.avitoName)
-      .filter((name): name is string => name !== null && name !== undefined && name.trim() !== '')
-      .sort((a, b) => a.localeCompare(b, 'ru'));
-
-    return {
-      success: true,
-      data: sources,
-    };
-  }
-
-  /**
-   * Получить список РК (хардкод)
-   */
-  async getCampaigns() {
-    const campaigns = ['Листовка', 'Авито'];
-
-    return {
-      success: true,
-      data: campaigns,
-    };
-  }
-
-  /**
-   * Получить уникальные города из таблицы phones
-   */
   async getCities() {
-    const phones = await this.prisma.phone.findMany({
-      select: {
-        city: true,
-      },
-      distinct: ['city'],
-      orderBy: {
-        city: 'asc',
-      },
+    const cities = await this.prisma.city.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
     });
+    return { success: true, data: cities };
+  }
 
-    const cities = phones
-      .map(p => p.city)
-      .filter((city): city is string => city !== null && city !== undefined && city.trim() !== '')
-      .sort((a, b) => a.localeCompare(b, 'ru'));
-
-    return {
-      success: true,
-      data: cities,
-    };
+  async getCampaigns() {
+    const rks = await this.prisma.rk.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+    return { success: true, data: rks };
   }
 }
-
