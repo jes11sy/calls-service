@@ -60,9 +60,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       try {
-        await this.prisma.errorLog.create({
+        await this.prisma.errorCalls.create({
           data: {
-            service: 'calls-service',
             errorType,
             errorMessage,
             stackTrace,

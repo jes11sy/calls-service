@@ -130,4 +130,13 @@ export class PhonesService {
     });
     return { success: true, data: rks };
   }
+
+  async getSources() {
+    const rks = await this.prisma.rk.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+    return { success: true, data: rks };
+  }
 }
