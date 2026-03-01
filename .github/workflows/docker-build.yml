@@ -37,8 +37,9 @@ jobs:
           context: .
           push: true
           tags: |
+            ${{ secrets.DOCKER_USERNAME }}/calls-service:${{ github.ref_name }}
+            ${{ secrets.DOCKER_USERNAME }}/calls-service:${{ github.ref_name }}-${{ github.sha }}
             ${{ secrets.DOCKER_USERNAME }}/calls-service:latest
-            ${{ secrets.DOCKER_USERNAME }}/calls-service:${{ github.sha }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/calls-service:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/calls-service:buildcache,mode=max
 
