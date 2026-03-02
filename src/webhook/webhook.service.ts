@@ -177,6 +177,8 @@ export class WebhookService {
         });
       }
 
+      const phoneNumber = phone ? phoneAts : null;
+
       let call: any;
       let isNewCall = false;
 
@@ -190,6 +192,7 @@ export class WebhookService {
             duration,
             phoneClient,
             phoneAts,
+            phoneNumber,
             mangoData: summaryData,
             ...(masterId && { masterId }),
           },
@@ -206,6 +209,7 @@ export class WebhookService {
               callId: entry_id,
               phoneClient,
               phoneAts,
+              phoneNumber,
               status,
               duration,
               operatorId: operator.id,
@@ -220,7 +224,7 @@ export class WebhookService {
             if (existingByCallId) {
               call = await this.prisma.call.update({
                 where: { id: existingByCallId.id },
-                data: { callDirection: callDirectionType, status, duration, mangoData: summaryData, ...(masterId && { masterId }) },
+                data: { callDirection: callDirectionType, status, duration, phoneNumber, mangoData: summaryData, ...(masterId && { masterId }) },
                 include: { operator: { select: { id: true, name: true } } },
               });
               isNewCall = false;
@@ -344,15 +348,17 @@ export class WebhookService {
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
 
+    const phoneNumber = phone ? phoneAts : null;
+
     let call: any;
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
-        data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, mangoData: payload },
+        data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, phoneNumber, mangoData: payload },
       });
     } else {
       call = await this.prisma.call.create({
-        data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, status: 'answered', operatorId: operator.id, mangoData: payload },
+        data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, phoneNumber, status: 'answered', operatorId: operator.id, mangoData: payload },
         include: { operator: { select: { id: true, name: true } } },
       });
       await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
@@ -411,12 +417,13 @@ export class WebhookService {
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
     const primaryCallId = entry_id || call_id;
+    const phoneNumber = phone ? phoneAts : null;
 
     let call: any;
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
-        data: { callId: primaryCallId, callDirection, status, duration, mangoData: payload, ...(masterId && { masterId }) },
+        data: { callId: primaryCallId, callDirection, status, duration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
         include: { operator: { select: { id: true, name: true } } },
       });
     } else {
@@ -424,7 +431,7 @@ export class WebhookService {
         call = await this.prisma.call.create({
           data: {
             cityId, rkId, callDirection, callId: primaryCallId,
-            phoneClient, phoneAts, status, duration,
+            phoneClient, phoneAts, phoneNumber, status, duration,
             operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
             mangoData: payload, ...(masterId && { masterId }),
           },
@@ -437,7 +444,7 @@ export class WebhookService {
           if (existingByCallId) {
             call = await this.prisma.call.update({
               where: { id: existingByCallId.id },
-              data: { callDirection, status, duration, mangoData: payload, ...(masterId && { masterId }) },
+              data: { callDirection, status, duration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
               include: { operator: { select: { id: true, name: true } } },
             });
           } else {
@@ -492,6 +499,7 @@ export class WebhookService {
 
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
+    const phoneNumber = phone ? phoneAts : null;
 
     if (!call_id) return { success: true, message: 'Call ID missing' };
 
@@ -501,13 +509,13 @@ export class WebhookService {
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { callId: call_id },
-        data: { callDirection, status, duration, phoneAts, mangoData: payload },
+        data: { callDirection, status, duration, phoneAts, phoneNumber, mangoData: payload },
       });
     } else {
       call = await this.prisma.call.create({
         data: {
           cityId, rkId, callDirection, callId: call_id,
-          phoneClient, phoneAts, duration, status,
+          phoneClient, phoneAts, phoneNumber, duration, status,
           operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
           mangoData: payload,
         },
@@ -527,13 +535,13 @@ export class WebhookService {
       if (!sipUsername || sipUsername === 'undefined') return null;
 
       let operator = await this.prisma.operator.findFirst({
-        where: { sipAddress: sipUsername },
+        where: { sipAddress: sipUsername, deletedAt: null, status: 'active' },
       });
 
       if (!operator && sipUsername.includes('@')) {
         const localPart = sipUsername.split('@')[0];
         operator = await this.prisma.operator.findFirst({
-          where: { sipAddress: localPart },
+          where: { sipAddress: localPart, deletedAt: null, status: 'active' },
         });
       }
 

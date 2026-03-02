@@ -20,7 +20,6 @@ export class CallsService {
 
     const where: any = {};
 
-    // Оператор видит свои звонки + звонки "Система" (ID=1)
     if (user.role === 'operator') {
       where.operatorId = { in: [user.userId, 1] };
     } else if (operatorId) {
@@ -57,6 +56,9 @@ export class CallsService {
         phoneClient: true,
         phoneAts: true,
         masterId: true,
+        directorId: true,
+        note: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -72,6 +74,9 @@ export class CallsService {
         },
         master: {
           select: { id: true, name: true },
+        },
+        appeal: {
+          select: { id: true, clientPhone: true, category: true, status: true },
         },
       },
       skip,
@@ -105,6 +110,9 @@ export class CallsService {
         phoneClient: true,
         phoneAts: true,
         masterId: true,
+        directorId: true,
+        note: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -121,6 +129,9 @@ export class CallsService {
         master: {
           select: { id: true, name: true },
         },
+        appeal: {
+          select: { id: true, clientPhone: true, category: true, status: true },
+        },
       },
     });
 
@@ -133,6 +144,12 @@ export class CallsService {
   }
 
   async createCall(dto: CreateCallDto, user: any) {
+    const phoneAts = dto.phoneAts || '';
+
+    const phone = phoneAts
+      ? await this.prisma.phone.findUnique({ where: { number: phoneAts } })
+      : null;
+
     const call = await this.prisma.call.create({
       data: {
         cityId: dto.cityId || 1,
@@ -140,13 +157,19 @@ export class CallsService {
         callDirection: dto.callDirection || 'inbound',
         callId: dto.callId || `MANUAL-${Date.now()}`,
         phoneClient: dto.phoneClient,
-        phoneAts: dto.phoneAts || '',
+        phoneAts,
+        phoneNumber: phone ? phoneAts : null,
         duration: dto.duration,
         status: dto.status,
         operatorId: user.userId,
+        masterId: dto.masterId || null,
+        directorId: dto.directorId || null,
+        note: dto.note || null,
+        appealId: dto.appealId || null,
       },
       include: {
         operator: { select: { id: true, name: true } },
+        master: { select: { id: true, name: true } },
       },
     });
 
@@ -170,6 +193,10 @@ export class CallsService {
         ...(dto.status && { status: dto.status }),
         ...(dto.duration !== undefined && { duration: dto.duration }),
         ...(dto.callDirection && { callDirection: dto.callDirection }),
+        ...(dto.masterId !== undefined && { masterId: dto.masterId }),
+        ...(dto.directorId !== undefined && { directorId: dto.directorId }),
+        ...(dto.note !== undefined && { note: dto.note }),
+        ...(dto.appealId !== undefined && { appealId: dto.appealId }),
       },
     });
 
@@ -192,6 +219,9 @@ export class CallsService {
         phoneClient: true,
         phoneAts: true,
         masterId: true,
+        directorId: true,
+        note: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -202,6 +232,7 @@ export class CallsService {
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
         phone: { select: { id: true, number: true } },
         master: { select: { id: true, name: true } },
+        appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
       },
       take: 50,
     });
@@ -265,6 +296,9 @@ export class CallsService {
         phoneClient: true,
         phoneAts: true,
         masterId: true,
+        directorId: true,
+        note: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -274,6 +308,7 @@ export class CallsService {
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true } },
         master: { select: { id: true, name: true } },
+        appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
       },
     });
 
@@ -347,6 +382,10 @@ export class CallsService {
         ...(data.status && { status: data.status }),
         ...(data.duration !== undefined && { duration: data.duration }),
         ...(data.callDirection && { callDirection: data.callDirection }),
+        ...(data.masterId !== undefined && { masterId: data.masterId }),
+        ...(data.directorId !== undefined && { directorId: data.directorId }),
+        ...(data.note !== undefined && { note: data.note }),
+        ...(data.appealId !== undefined && { appealId: data.appealId }),
       },
     });
 

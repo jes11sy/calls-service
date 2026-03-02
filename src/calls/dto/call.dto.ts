@@ -46,12 +46,39 @@ export class CreateCallDto {
   @IsString()
   @IsIn(['answered', 'missed', 'busy', 'no_answer'])
   status: string;
+
+  @ApiProperty({ required: false, description: 'ID мастера' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  masterId?: number;
+
+  @ApiProperty({ required: false, description: 'ID директора' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  directorId?: number;
+
+  @ApiProperty({ required: false, description: 'Заметка к звонку' })
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @ApiProperty({ required: false, description: 'ID обращения' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  appealId?: number;
 }
 
 export class UpdateCallDto {
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, enum: ['answered', 'missed', 'busy', 'no_answer'] })
   @IsString()
   @IsOptional()
+  @IsIn(['answered', 'missed', 'busy', 'no_answer'])
   status?: string;
 
   @ApiProperty({ required: false })
@@ -64,4 +91,30 @@ export class UpdateCallDto {
   @IsOptional()
   @IsIn(['inbound', 'outbound', 'callback'])
   callDirection?: string;
+
+  @ApiProperty({ required: false, description: 'ID мастера' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  masterId?: number;
+
+  @ApiProperty({ required: false, description: 'ID директора' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  directorId?: number;
+
+  @ApiProperty({ required: false, description: 'Заметка к звонку' })
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @ApiProperty({ required: false, description: 'ID обращения' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  appealId?: number;
 }
