@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePhoneDto {
-  @ApiProperty({ description: 'Phone number', example: '+74951234567' })
+  @ApiProperty({ description: 'Phone number', example: '79539979880' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
@@ -22,10 +22,16 @@ export class CreatePhoneDto {
   @IsNotEmpty()
   @Min(1)
   cityId: number;
+
+  @ApiProperty({ description: 'Источник', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  source?: string;
 }
 
 export class UpdatePhoneDto {
-  @ApiProperty({ description: 'Phone number', example: '+74951234567' })
+  @ApiProperty({ description: 'Phone number', example: '79539979880' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
@@ -44,4 +50,10 @@ export class UpdatePhoneDto {
   @IsNotEmpty()
   @Min(1)
   cityId: number;
+
+  @ApiProperty({ description: 'Источник', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  source?: string;
 }

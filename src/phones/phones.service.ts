@@ -12,6 +12,7 @@ export class PhonesService {
         ? {
             OR: [
               { number: { contains: search, mode: 'insensitive' } },
+              { source: { contains: search, mode: 'insensitive' } },
             ],
           }
         : undefined,
@@ -23,6 +24,7 @@ export class PhonesService {
         city: { select: { id: true, name: true } },
         rkId: true,
         rk: { select: { id: true, name: true, code: true } },
+        source: true,
         createdAt: true,
         _count: { select: { calls: true } },
       },
@@ -38,6 +40,7 @@ export class PhonesService {
         rkId: phone.rkId,
         rkName: phone.rk?.name,
         rkCode: phone.rk?.code,
+        source: phone.source,
         callsCount: phone._count.calls,
         createdAt: phone.createdAt,
       })),
@@ -54,6 +57,7 @@ export class PhonesService {
         city: { select: { id: true, name: true } },
         rkId: true,
         rk: { select: { id: true, name: true, code: true } },
+        source: true,
         createdAt: true,
         _count: { select: { calls: true } },
       },
@@ -70,6 +74,8 @@ export class PhonesService {
         cityName: phone.city?.name,
         rkId: phone.rkId,
         rkName: phone.rk?.name,
+        rkCode: phone.rk?.code,
+        source: phone.source,
         callsCount: phone._count.calls,
         createdAt: phone.createdAt,
       },
@@ -82,6 +88,7 @@ export class PhonesService {
         number: dto.phoneNumber,
         rkId: dto.rkId,
         cityId: dto.cityId,
+        source: dto.source || null,
       },
     });
 
@@ -98,6 +105,7 @@ export class PhonesService {
         number: dto.phoneNumber,
         rkId: dto.rkId,
         cityId: dto.cityId,
+        source: dto.source ?? null,
       },
     });
 
