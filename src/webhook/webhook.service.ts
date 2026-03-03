@@ -179,6 +179,9 @@ export class WebhookService {
 
       const phoneNumber = phone ? phoneAts : null;
 
+      const finalStatus = (existingCall?.status === 'answered' && status !== 'answered') ? 'answered' : status;
+      const finalDuration = (existingCall?.status === 'answered' && duration === 0 && (existingCall.duration ?? 0) > 0) ? existingCall.duration : duration;
+
       let call: any;
       let isNewCall = false;
 
@@ -188,8 +191,8 @@ export class WebhookService {
           data: {
             callId: entry_id,
             callDirection: callDirectionType,
-            status,
-            duration,
+            status: finalStatus,
+            duration: finalDuration,
             phoneClient,
             phoneAts,
             phoneNumber,
@@ -223,9 +226,10 @@ export class WebhookService {
           if (createError.code === 'P2002') {
             const existingByCallId = await this.prisma.call.findUnique({ where: { callId: entry_id } });
             if (existingByCallId) {
+              const existingFinalStatus = (existingByCallId.status === 'answered' && finalStatus !== 'answered') ? 'answered' : finalStatus;
               call = await this.prisma.call.update({
                 where: { id: existingByCallId.id },
-                data: { callDirection: callDirectionType, status, duration, phoneNumber, mangoData: summaryData, ...(masterId && { masterId }) },
+                data: { callDirection: callDirectionType, status: existingFinalStatus, duration: finalDuration, phoneNumber, mangoData: summaryData, ...(masterId && { masterId }) },
                 include: { operator: { select: { id: true, name: true } } },
               });
               isNewCall = false;
@@ -251,7 +255,7 @@ export class WebhookService {
 
       await this.realtimeService.broadcastCallEnded(call, ['operators']);
 
-      if (status === 'answered' && callDirectionType === 'inbound' && !call.appealId) {
+      if (finalStatus === 'answered' && callDirectionType === 'inbound' && !call.appealId) {
         this.createAppealForCall(call, phoneClient, operator.id).catch(err =>
           this.logger.warn(`Auto-create appeal failed for call ${call.id}: ${err.message}`),
         );
@@ -429,11 +433,14 @@ export class WebhookService {
     const primaryCallId = entry_id || call_id;
     const phoneNumber = phone ? phoneAts : null;
 
+    const finalStatus = (existingCall?.status === 'answered' && status !== 'answered') ? 'answered' : status;
+    const finalDuration = (existingCall?.status === 'answered' && duration === 0 && existingCall.duration > 0) ? existingCall.duration : duration;
+
     let call: any;
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
-        data: { callId: primaryCallId, callDirection, status, duration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
+        data: { callId: primaryCallId, callDirection, status: finalStatus, duration: finalDuration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
         include: { operator: { select: { id: true, name: true } } },
       });
     } else {
@@ -441,7 +448,7 @@ export class WebhookService {
         call = await this.prisma.call.create({
           data: {
             cityId, rkId, callDirection, callId: primaryCallId,
-            phoneClient, phoneAts, phoneNumber, status, duration,
+            phoneClient, phoneAts, phoneNumber, status: finalStatus, duration: finalDuration,
             operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
             mangoData: payload, ...(masterId && { masterId }),
           },
@@ -453,9 +460,10 @@ export class WebhookService {
         if (createError.code === 'P2002') {
           const existingByCallId = await this.prisma.call.findUnique({ where: { callId: primaryCallId } });
           if (existingByCallId) {
+            const existingFinalStatus = (existingByCallId.status === 'answered' && finalStatus !== 'answered') ? 'answered' : finalStatus;
             call = await this.prisma.call.update({
               where: { id: existingByCallId.id },
-              data: { callDirection, status, duration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
+              data: { callDirection, status: existingFinalStatus, duration: finalDuration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
               include: { operator: { select: { id: true, name: true } } },
             });
           } else {
@@ -469,7 +477,7 @@ export class WebhookService {
 
     await this.realtimeService.broadcastCallEnded(call, ['operators']);
 
-    return { success: true, message: 'Call disconnected', data: { callId: call_id, status, duration } };
+    return { success: true, message: 'Call disconnected', data: { callId: call_id, status: finalStatus, duration: finalDuration } };
   }
 
   private async handleLegacyFormat(payload: any, callDirection: string = 'inbound') {
@@ -515,12 +523,13 @@ export class WebhookService {
     if (!call_id) return { success: true, message: 'Call ID missing' };
 
     const existingCall = await this.prisma.call.findUnique({ where: { callId: call_id } });
+    const finalStatus = (existingCall?.status === 'answered' && status !== 'answered') ? 'answered' : status;
 
     let call: any;
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { callId: call_id },
-        data: { callDirection, status, duration, phoneAts, phoneNumber, mangoData: payload },
+        data: { callDirection, status: finalStatus, duration, phoneAts, phoneNumber, mangoData: payload },
       });
     } else {
       call = await this.prisma.call.create({

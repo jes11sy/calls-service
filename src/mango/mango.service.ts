@@ -69,32 +69,31 @@ export class MangoService {
   }
 
   determineCallStatus(webhookData: any): 'answered' | 'missed' | 'busy' | 'no_answer' {
-    // Проверяем disconnect_reason
-    if (webhookData.disconnect_reason) {
-      switch (webhookData.disconnect_reason) {
-        case 1100: // Нормальное завершение
-        case 1120: // Нормальное завершение
-          return 'answered';
-        case 1101: // Занято
-          return 'busy';
-        case 1102: // Нет ответа
-          return 'no_answer';
-        default:
-          return 'missed';
-      }
-    }
-
-    // Если есть answer_time - значит ответили
     if (webhookData.answer_time) {
       return 'answered';
     }
 
-    // Проверяем entry_result
-    if (webhookData.entry_result === 'success') {
+    if (webhookData.talk_time && webhookData.talk_time > 0) {
       return 'answered';
     }
 
-    // По умолчанию - пропущенный
+    if (webhookData.entry_result === 'success' || webhookData.entry_result === 1) {
+      return 'answered';
+    }
+
+    const reason = Number(webhookData.disconnect_reason);
+    if (reason) {
+      switch (reason) {
+        case 1100:
+        case 1120:
+          return 'answered';
+        case 1101:
+          return 'busy';
+        case 1102:
+          return 'no_answer';
+      }
+    }
+
     return 'missed';
   }
 
