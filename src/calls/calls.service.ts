@@ -76,14 +76,14 @@ export class CallsService {
           select: { id: true, name: true },
         },
         appeal: {
-          select: { id: true, clientPhone: true, category: true, status: true },
+          select: { id: true, clientPhone: true, status: true },
         },
       },
       skip,
       take: limit,
     });
 
-    const callsWithMasterName = calls.map(call => ({
+    const callsWithMasterName = calls.map((call: any) => ({
       ...call,
       source: call.phone?.source ?? null,
       masterName: call.master?.name || null,
@@ -131,16 +131,17 @@ export class CallsService {
           select: { id: true, name: true },
         },
         appeal: {
-          select: { id: true, clientPhone: true, category: true, status: true },
+          select: { id: true, clientPhone: true, status: true },
         },
       },
     });
 
     if (!call) throw new NotFoundException('Call not found');
 
+    const c = call as any;
     return {
       success: true,
-      data: { ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null },
+      data: { ...call, source: c.phone?.source ?? null, masterName: c.master?.name || null },
     };
   }
 
@@ -233,14 +234,14 @@ export class CallsService {
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
         phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
-        appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
+        appeal: { select: { id: true, clientPhone: true, status: true } },
       },
       take: 50,
     });
 
     return {
       success: true,
-      data: calls.map(call => ({ ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null })),
+      data: calls.map((call: any) => ({ ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null })),
     };
   }
 
@@ -310,11 +311,11 @@ export class CallsService {
         operator: { select: { id: true, name: true, login: true } },
         phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
-        appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
+        appeal: { select: { id: true, clientPhone: true, status: true } },
       },
     });
 
-    const callsWithMasterName = calls.map(call => ({
+    const callsWithMasterName = calls.map((call: any) => ({
       ...call,
       source: call.phone?.source ?? null,
       masterName: call.master?.name || null,
