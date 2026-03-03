@@ -251,6 +251,12 @@ export class WebhookService {
 
       await this.realtimeService.broadcastCallEnded(call, ['operators']);
 
+      if (status === 'answered' && callDirectionType === 'inbound' && !call.appealId) {
+        this.createAppealForCall(call, phoneClient, operator.id).catch(err =>
+          this.logger.warn(`Auto-create appeal failed for call ${call.id}: ${err.message}`),
+        );
+      }
+
       return { success: true, message: 'Summary processed', data: { callId: entry_id, status, duration } };
     } catch (error) {
       this.logger.error(`Error processing Mango summary: ${error.message}`, error.stack);
@@ -528,6 +534,37 @@ export class WebhookService {
     }
 
     return { success: true, message: 'Webhook processed (legacy)', data: { callId: call_id, status } };
+  }
+
+  private async createAppealForCall(call: any, phoneClient: string, operatorId: number) {
+    const existingAppeal = await this.prisma.appeal.findFirst({
+      where: { callId: call.id },
+    });
+    if (existingAppeal) {
+      this.logger.log(`Appeal already exists for call ${call.id}, skipping`);
+      return;
+    }
+
+    const appeal = await this.prisma.appeal.create({
+      data: {
+        clientPhone: phoneClient,
+        category: 'question',
+        description: '',
+        status: 'new',
+        callId: call.id,
+        operatorId,
+        cityId: call.cityId ?? null,
+        rkId: call.rkId ?? null,
+        source: call.source ?? null,
+      },
+    });
+
+    await this.prisma.call.update({
+      where: { id: call.id },
+      data: { appealId: appeal.id },
+    });
+
+    this.logger.log(`Auto-created appeal #${appeal.id} for answered inbound call #${call.id}`);
   }
 
   private async findOperatorBySip(sipUsername: string) {
