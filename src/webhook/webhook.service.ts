@@ -257,12 +257,6 @@ export class WebhookService {
 
       await this.realtimeService.broadcastCallEnded(call, ['operators']);
 
-      if (finalStatus === 'answered' && callDirectionType === 'inbound' && !call.orderId) {
-        this.createOrderForCall(call, phoneClient, operator.id).catch(err =>
-          this.logger.warn(`Auto-create order failed for call ${call.id}: ${err.message}`),
-        );
-      }
-
       return { success: true, message: 'Summary processed', data: { callId: entry_id, status, duration } };
     } catch (error) {
       this.logger.error(`Error processing Mango summary: ${error.message}`, error.stack);
