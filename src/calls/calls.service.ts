@@ -70,7 +70,7 @@ export class CallsService {
           select: { id: true, name: true, login: true },
         },
         phone: {
-          select: { id: true, number: true, cityId: true, rkId: true },
+          select: { id: true, number: true, cityId: true, rkId: true, source: true },
         },
         master: {
           select: { id: true, name: true },
@@ -85,6 +85,7 @@ export class CallsService {
 
     const callsWithMasterName = calls.map(call => ({
       ...call,
+      source: call.phone?.source ?? null,
       masterName: call.master?.name || null,
     }));
 
@@ -124,7 +125,7 @@ export class CallsService {
           select: { id: true, name: true, login: true, sipAddress: true },
         },
         phone: {
-          select: { id: true, number: true, cityId: true, rkId: true },
+          select: { id: true, number: true, cityId: true, rkId: true, source: true },
         },
         master: {
           select: { id: true, name: true },
@@ -139,7 +140,7 @@ export class CallsService {
 
     return {
       success: true,
-      data: { ...call, masterName: call.master?.name || null },
+      data: { ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null },
     };
   }
 
@@ -230,7 +231,7 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
-        phone: { select: { id: true, number: true } },
+        phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
         appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
       },
@@ -239,7 +240,7 @@ export class CallsService {
 
     return {
       success: true,
-      data: calls.map(call => ({ ...call, masterName: call.master?.name || null })),
+      data: calls.map(call => ({ ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null })),
     };
   }
 
@@ -307,6 +308,7 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true } },
+        phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
         appeal: { select: { id: true, clientPhone: true, category: true, status: true } },
       },
@@ -314,6 +316,7 @@ export class CallsService {
 
     const callsWithMasterName = calls.map(call => ({
       ...call,
+      source: call.phone?.source ?? null,
       masterName: call.master?.name || null,
     }));
 

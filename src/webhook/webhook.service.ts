@@ -159,7 +159,7 @@ export class WebhookService {
 
       const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
       const rkId = phone?.rkId || this.DEFAULT_RK_ID;
-      const cityName = phone?.city?.name || 'Неизвестно';
+      const source = phone?.source ?? null;
 
       let existingCall = existingCallForDirection;
       if (!existingCall) {
@@ -216,8 +216,9 @@ export class WebhookService {
               mangoData: summaryData,
               ...(masterId && { masterId }),
             },
-            include: { operator: { select: { id: true, name: true } } },
+            include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
           });
+          call.source = source;
         } catch (createError: any) {
           if (createError.code === 'P2002') {
             const existingByCallId = await this.prisma.call.findUnique({ where: { callId: entry_id } });
@@ -241,7 +242,7 @@ export class WebhookService {
         await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
         if (callDirectionType === 'inbound' && operator.id && status === 'missed') {
           this.realtimeService.sendCallNotificationToOperator(
-            operator.id, call.id, phoneClient, 'call_missed', call.cityId, undefined,
+            operator.id, call.id, phoneClient, 'call_missed', call.cityId, phone?.rk?.name, source,
           ).catch(err => this.logger.warn(`Missed call notification failed: ${err.message}`));
         }
       } else {
@@ -266,7 +267,7 @@ export class WebhookService {
 
     const existingCall = await this.prisma.call.findUnique({ where: { callId: call_id } });
     const phone = phoneAts
-      ? await this.prisma.phone.findUnique({ where: { number: phoneAts }, include: { city: true } })
+      ? await this.prisma.phone.findUnique({ where: { number: phoneAts }, include: { city: true, rk: true } })
       : null;
 
     const operatorSipSource = to?.number || to;
@@ -282,13 +283,15 @@ export class WebhookService {
 
     if (callDirection === 'inbound') {
       const phoneCityId = phone?.cityId;
+      const rkName = phone?.rk?.name;
+      const source = phone?.source;
       if (operator?.id) {
         this.realtimeService.sendCallNotificationToOperator(
-          operator.id, 0, phoneClient, 'call_incoming', phoneCityId, undefined,
+          operator.id, 0, phoneClient, 'call_incoming', phoneCityId, rkName, source,
         ).catch(err => this.logger.warn(`Incoming call notification failed: ${err.message}`));
       } else {
         this.realtimeService.broadcastCallNotificationToAllOperators(
-          0, phoneClient, 'call_incoming', phoneCityId, undefined,
+          0, phoneClient, 'call_incoming', phoneCityId, rkName, source,
         ).catch(err => this.logger.warn(`Broadcast incoming call notification failed: ${err.message}`));
       }
     }
@@ -359,8 +362,9 @@ export class WebhookService {
     } else {
       call = await this.prisma.call.create({
         data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, phoneNumber, status: 'answered', operatorId: operator.id, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
       });
+      call.source = phone?.source ?? null;
       await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
     }
 
@@ -435,8 +439,9 @@ export class WebhookService {
             operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
             mangoData: payload, ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } } },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
         });
+        call.source = phone?.source ?? null;
         await this.realtimeService.broadcastNewCall(call, ['operators']);
       } catch (createError: any) {
         if (createError.code === 'P2002') {

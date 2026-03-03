@@ -35,6 +35,7 @@ export class RealtimeService {
             rkName: call.rk?.name ?? null,
             cityId: call.cityId,
             cityName: call.city?.name ?? null,
+            source: call.source ?? null,
             callDirection: call.callDirection,
             callId: call.callId,
             phoneClient: call.phoneClient,
@@ -125,6 +126,7 @@ export class RealtimeService {
     callType: 'call_incoming' | 'call_missed',
     cityId?: number,
     rkName?: string,
+    source?: string | null,
   ): Promise<void> {
     try {
       await this.axiosInstance.post(
@@ -136,6 +138,7 @@ export class RealtimeService {
           callType,
           cityId,
           rkName,
+          source: source ?? undefined,
         },
         { timeout: 3000 }
       );
@@ -155,6 +158,7 @@ export class RealtimeService {
     callType: 'call_incoming' | 'call_missed',
     cityId?: number,
     rkName?: string,
+    source?: string | null,
   ): Promise<void> {
     try {
       await this.axiosInstance.post(
@@ -165,6 +169,7 @@ export class RealtimeService {
           callType,
           cityId,
           rkName,
+          source: source ?? undefined,
         },
         { timeout: 3000 }
       );
