@@ -16,7 +16,7 @@ export interface ICall {
   recordingProcessedAt: Date | null;
   mangoData: any | null;
   note: string | null;
-  appealId: number | null;
+  orderId: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,11 +46,10 @@ export interface ICallWithRelations extends ICallWithOperator {
     rk?: { id: number; name: string } | null;
     city?: { id: number; name: string } | null;
   } | null;
-  appeal?: {
+  order?: {
     id: number;
-    clientPhone: string;
-    category: string;
-    status: string;
+    phone: string;
+    statusId: number;
   } | null;
 }
 

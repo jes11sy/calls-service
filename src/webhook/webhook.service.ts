@@ -15,6 +15,7 @@ export class WebhookService {
   private readonly DEFAULT_CITY_ID = 1;
   private readonly DEFAULT_RK_ID = 1;
   private readonly SYSTEM_OPERATOR_ID = 1;
+  private cachedNewStatusId: number | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -199,8 +200,9 @@ export class WebhookService {
             mangoData: summaryData,
             ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } } },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
         });
+        call.source = source;
       } else {
         isNewCall = true;
         try {
@@ -255,9 +257,9 @@ export class WebhookService {
 
       await this.realtimeService.broadcastCallEnded(call, ['operators']);
 
-      if (finalStatus === 'answered' && callDirectionType === 'inbound' && !call.appealId) {
-        this.createAppealForCall(call, phoneClient, operator.id).catch(err =>
-          this.logger.warn(`Auto-create appeal failed for call ${call.id}: ${err.message}`),
+      if (finalStatus === 'answered' && callDirectionType === 'inbound' && !call.orderId) {
+        this.createOrderForCall(call, phoneClient, operator.id).catch(err =>
+          this.logger.warn(`Auto-create order failed for call ${call.id}: ${err.message}`),
         );
       }
 
@@ -368,7 +370,10 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
         data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, phoneNumber, mangoData: payload },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
       });
+      call.source = phone?.source ?? null;
+      await this.realtimeService.broadcastCallUpdated(call, ['operators', `operator:${operator.id}`]);
     } else {
       call = await this.prisma.call.create({
         data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, phoneNumber, status: 'answered', operatorId: operator.id, mangoData: payload },
@@ -441,8 +446,9 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
         data: { callId: primaryCallId, callDirection, status: finalStatus, duration: finalDuration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
-        include: { operator: { select: { id: true, name: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
       });
+      call.source = phone?.source ?? null;
     } else {
       try {
         call = await this.prisma.call.create({
@@ -530,7 +536,10 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { callId: call_id },
         data: { callDirection, status: finalStatus, duration, phoneAts, phoneNumber, mangoData: payload },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
       });
+      call.source = phone?.source ?? null;
+      await this.realtimeService.broadcastCallUpdated(call, ['operators']);
     } else {
       call = await this.prisma.call.create({
         data: {
@@ -539,40 +548,55 @@ export class WebhookService {
           operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
           mangoData: payload,
         },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
       });
+      call.source = phone?.source ?? null;
+      await this.realtimeService.broadcastNewCall(call, ['operators']);
     }
 
     return { success: true, message: 'Webhook processed (legacy)', data: { callId: call_id, status } };
   }
 
-  private async createAppealForCall(call: any, phoneClient: string, operatorId: number) {
-    const existingAppeal = await this.prisma.appeal.findFirst({
-      where: { callId: call.id },
+  private async createOrderForCall(call: any, phoneClient: string, operatorId: number) {
+    const existingOrder = await this.prisma.order.findFirst({
+      where: { callId: String(call.id) },
     });
-    if (existingAppeal) {
-      this.logger.log(`Appeal already exists for call ${call.id}, skipping`);
+    if (existingOrder) {
+      this.logger.log(`Order already exists for call ${call.id}, skipping`);
       return;
     }
 
-    const appeal = await this.prisma.appeal.create({
+    const newStatusId = await this.getNewStatusId();
+
+    const order = await this.prisma.order.create({
       data: {
-        clientPhone: phoneClient,
+        phone: phoneClient,
+        clientName: '',
         description: '',
-        status: 'new',
-        callId: call.id,
+        statusId: newStatusId,
+        callId: String(call.id),
         operatorId,
-        cityId: call.cityId ?? null,
-        rkId: call.rkId ?? null,
+        cityId: call.cityId ?? 1,
+        rkId: call.rkId ?? 1,
         source: call.source ?? null,
       },
     });
 
     await this.prisma.call.update({
       where: { id: call.id },
-      data: { appealId: appeal.id },
+      data: { orderId: order.id },
     });
 
-    this.logger.log(`Auto-created appeal #${appeal.id} for answered inbound call #${call.id}`);
+    this.logger.log(`Auto-created order #${order.id} (appeal) for answered inbound call #${call.id}`);
+  }
+
+  private async getNewStatusId(): Promise<number> {
+    if (this.cachedNewStatusId) return this.cachedNewStatusId;
+    const result = await this.prisma.$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM references_service.order_statuses WHERE code = 'new' LIMIT 1
+    `;
+    this.cachedNewStatusId = result?.[0]?.id ?? 1;
+    return this.cachedNewStatusId;
   }
 
   private async findOperatorBySip(sipUsername: string) {

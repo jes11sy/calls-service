@@ -79,47 +79,22 @@ model Master {
 // ─────────────────────────────────────────
 
 model Order {
-  id         Int     @id @default(autoincrement())
-  phone      String  @db.VarChar(20)
-  cityId     Int     @map("city_id")
-  rkId       Int     @map("rk_id")
-  callId     String? @map("call_id") @db.VarChar(100)
-  masterId   Int?    @map("master_id")
-  clientName String  @map("client_name") @db.VarChar(255)
-  appealId   Int?    @map("appeal_id")
-
-  @@schema("orders_service")
-  @@map("orders")
-}
-
-/// Обращения клиентов
-model Appeal {
   id          Int      @id @default(autoincrement())
-  clientPhone String   @map("client_phone") @db.VarChar(20)
-  clientName  String?  @map("client_name") @db.VarChar(100)
+  phone       String   @db.VarChar(20)
+  cityId      Int      @map("city_id")
+  rkId        Int      @map("rk_id")
+  callId      String?  @map("call_id") @db.VarChar(100)
+  masterId    Int?     @map("master_id")
+  clientName  String   @default("") @map("client_name") @db.VarChar(255)
+  statusId    Int      @map("status_id")
+  operatorId  Int      @map("operator_id")
   description String   @default("") @db.Text
-  result      String?  @db.Text
-  status      String   @default("new") @db.VarChar(50)
-  callId      Int?     @map("call_id")
-  siteOrderId Int?     @map("site_order_id")
-  orderId     Int?     @map("order_id")
-  operatorId  Int?     @map("operator_id")
-  cityId      Int?     @map("city_id")
-  rkId        Int?     @map("rk_id")
   source      String?  @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
 
   calls Call[]
 
-  @@index([status])
-  @@index([clientPhone])
-  @@index([operatorId])
-  @@index([cityId])
-  @@index([createdAt])
-  @@index([status, createdAt])
   @@schema("orders_service")
-  @@map("appeals")
+  @@map("orders")
 }
 
 // ─────────────────────────────────────────
@@ -165,7 +140,7 @@ model Call {
   masterId             Int?      @map("master_id")
   directorId           Int?      @map("director_id")
   note                 String?   @db.Text
-  appealId             Int?      @map("appeal_id")
+  orderId              Int?      @map("order_id")
   phoneNumber          String?   @map("phone_number") @db.VarChar(20)
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
@@ -175,7 +150,7 @@ model Call {
   operator Operator  @relation(fields: [operatorId], references: [id])
   master   Master?   @relation(fields: [masterId], references: [id])
   phone    Phone?    @relation(fields: [phoneNumber], references: [number])
-  appeal   Appeal?   @relation(fields: [appealId], references: [id])
+  order    Order?    @relation(fields: [orderId], references: [id])
 
   @@index([operatorId])
   @@index([masterId])
@@ -186,7 +161,7 @@ model Call {
   @@index([cityId])
   @@index([rkId])
   @@index([callDirection])
-  @@index([appealId])
+  @@index([orderId])
   @@index([cityId, createdAt])
   @@index([cityId, status])
   @@index([operatorId, createdAt])

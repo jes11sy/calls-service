@@ -58,7 +58,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        appealId: true,
+        orderId: true,
         status: true,
         callId: true,
         duration: true,
@@ -75,8 +75,8 @@ export class CallsService {
         master: {
           select: { id: true, name: true },
         },
-        appeal: {
-          select: { id: true, clientPhone: true, status: true },
+        order: {
+          select: { id: true, phone: true, statusId: true },
         },
       },
       skip,
@@ -113,7 +113,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        appealId: true,
+        orderId: true,
         status: true,
         callId: true,
         duration: true,
@@ -130,8 +130,8 @@ export class CallsService {
         master: {
           select: { id: true, name: true },
         },
-        appeal: {
-          select: { id: true, clientPhone: true, status: true },
+        order: {
+          select: { id: true, phone: true, statusId: true },
         },
       },
     });
@@ -167,7 +167,7 @@ export class CallsService {
         masterId: dto.masterId || null,
         directorId: dto.directorId || null,
         note: dto.note || null,
-        appealId: dto.appealId || null,
+        orderId: dto.orderId || null,
       },
       include: {
         operator: { select: { id: true, name: true } },
@@ -198,7 +198,7 @@ export class CallsService {
         ...(dto.masterId !== undefined && { masterId: dto.masterId }),
         ...(dto.directorId !== undefined && { directorId: dto.directorId }),
         ...(dto.note !== undefined && { note: dto.note }),
-        ...(dto.appealId !== undefined && { appealId: dto.appealId }),
+        ...(dto.orderId !== undefined && { orderId: dto.orderId }),
       },
     });
 
@@ -223,7 +223,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        appealId: true,
+        orderId: true,
         status: true,
         callId: true,
         duration: true,
@@ -234,7 +234,7 @@ export class CallsService {
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
         phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
-        appeal: { select: { id: true, clientPhone: true, status: true } },
+        order: { select: { id: true, phone: true, statusId: true } },
       },
       take: 50,
     });
@@ -300,7 +300,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        appealId: true,
+        orderId: true,
         status: true,
         callId: true,
         duration: true,
@@ -311,7 +311,7 @@ export class CallsService {
         operator: { select: { id: true, name: true, login: true } },
         phone: { select: { id: true, number: true, source: true } },
         master: { select: { id: true, name: true } },
-        appeal: { select: { id: true, clientPhone: true, status: true } },
+        order: { select: { id: true, phone: true, statusId: true } },
       },
     });
 
@@ -389,7 +389,7 @@ export class CallsService {
         ...(data.masterId !== undefined && { masterId: data.masterId }),
         ...(data.directorId !== undefined && { directorId: data.directorId }),
         ...(data.note !== undefined && { note: data.note }),
-        ...(data.appealId !== undefined && { appealId: data.appealId }),
+        ...(data.orderId !== undefined && { orderId: data.orderId }),
       },
     });
 

@@ -66,12 +66,12 @@ export class CreateCallDto {
   @IsOptional()
   note?: string;
 
-  @ApiProperty({ required: false, description: 'ID обращения' })
+  @ApiProperty({ required: false, description: 'ID заказа/обращения' })
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
   @Min(1)
-  appealId?: number;
+  orderId?: number;
 }
 
 export class UpdateCallDto {
@@ -111,10 +111,10 @@ export class UpdateCallDto {
   @IsOptional()
   note?: string;
 
-  @ApiProperty({ required: false, description: 'ID обращения' })
+  @ApiProperty({ required: false, description: 'ID заказа/обращения' })
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
   @Min(1)
-  appealId?: number;
+  orderId?: number;
 }
