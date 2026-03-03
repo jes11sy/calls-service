@@ -557,7 +557,6 @@ export class WebhookService {
     const appeal = await this.prisma.appeal.create({
       data: {
         clientPhone: phoneClient,
-        category: 'question',
         description: '',
         status: 'new',
         callId: call.id,

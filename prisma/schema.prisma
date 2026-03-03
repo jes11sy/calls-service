@@ -97,7 +97,6 @@ model Appeal {
   id          Int      @id @default(autoincrement())
   clientPhone String   @map("client_phone") @db.VarChar(20)
   clientName  String?  @map("client_name") @db.VarChar(100)
-  category    String   @db.VarChar(50)
   description String   @default("") @db.Text
   result      String?  @db.Text
   status      String   @default("new") @db.VarChar(50)
