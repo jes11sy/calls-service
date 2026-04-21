@@ -10,10 +10,7 @@ export class PhonesService {
     const phones = await this.prisma.phone.findMany({
       where: search
         ? {
-            OR: [
-              { number: { contains: search, mode: 'insensitive' } },
-              { source: { contains: search, mode: 'insensitive' } },
-            ],
+            OR: [{ number: { contains: search, mode: 'insensitive' } }],
           }
         : undefined,
       orderBy: { createdAt: 'desc' },
@@ -24,7 +21,6 @@ export class PhonesService {
         city: { select: { id: true, name: true } },
         rkId: true,
         rk: { select: { id: true, name: true, code: true } },
-        source: true,
         createdAt: true,
       },
     });
@@ -52,7 +48,7 @@ export class PhonesService {
         rkId: phone.rkId,
         rkName: phone.rk?.name,
         rkCode: phone.rk?.code,
-        source: phone.source,
+        source: null,
         callsCount: callsCountByPhone.get(phone.number) || 0,
         createdAt: phone.createdAt,
       })),
@@ -69,7 +65,6 @@ export class PhonesService {
         city: { select: { id: true, name: true } },
         rkId: true,
         rk: { select: { id: true, name: true, code: true } },
-        source: true,
         createdAt: true,
       },
     });
@@ -92,7 +87,7 @@ export class PhonesService {
         rkId: phone.rkId,
         rkName: phone.rk?.name,
         rkCode: phone.rk?.code,
-        source: phone.source,
+        source: null,
         callsCount,
         createdAt: phone.createdAt,
       },
@@ -105,7 +100,6 @@ export class PhonesService {
         number: dto.phoneNumber,
         rkId: dto.rkId,
         cityId: dto.cityId,
-        source: dto.source || null,
       },
     });
 
@@ -122,7 +116,6 @@ export class PhonesService {
         number: dto.phoneNumber,
         rkId: dto.rkId,
         cityId: dto.cityId,
-        source: dto.source ?? null,
       },
     });
 
@@ -157,13 +150,6 @@ export class PhonesService {
   }
 
   async getSources() {
-    const phones = await this.prisma.phone.findMany({
-      where: { source: { not: null } },
-      select: { source: true },
-      distinct: ['source'],
-      orderBy: { source: 'asc' },
-    });
-    const sources = phones.map(p => p.source).filter(Boolean) as string[];
-    return { success: true, data: sources };
+    return { success: true, data: [] };
   }
 }
