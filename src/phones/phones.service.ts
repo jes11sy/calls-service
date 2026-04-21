@@ -27,13 +27,21 @@ export class PhonesService {
         city: true,
         avitoName: true,
         createdAt: true,
-        _count: {
-          select: {
-            calls: true,
-          },
-        },
       },
     });
+
+    const callCounts = await this.prisma.call.groupBy({
+      by: ['phoneAts'],
+      _count: {
+        _all: true,
+      },
+    });
+
+    const callsCountByPhone = new Map(
+      callCounts
+        .filter((item) => item.phoneAts)
+        .map((item) => [item.phoneAts, item._count._all]),
+    );
 
     // Преобразуем данные для фронта
     const phonesWithCallsCount = phones.map(phone => ({
@@ -42,7 +50,7 @@ export class PhonesService {
       campaign: phone.rk,
       city: phone.city,
       accountName: phone.avitoName || 'Не указан',
-      callsCount: phone._count.calls,
+      callsCount: callsCountByPhone.get(phone.number) || 0,
       createdAt: phone.createdAt,
     }));
 
@@ -62,17 +70,18 @@ export class PhonesService {
         city: true,
         avitoName: true,
         createdAt: true,
-        _count: {
-          select: {
-            calls: true,
-          },
-        },
       },
     });
 
     if (!phone) {
       throw new NotFoundException('Phone number not found');
     }
+
+    const callsCount = await this.prisma.call.count({
+      where: {
+        phoneAts: phone.number,
+      },
+    });
 
     // Преобразуем данные для фронта
     const phoneData = {
@@ -81,7 +90,7 @@ export class PhonesService {
       campaign: phone.rk,
       city: phone.city,
       accountName: phone.avitoName || '',
-      callsCount: phone._count.calls,
+      callsCount,
       createdAt: phone.createdAt,
     };
 
