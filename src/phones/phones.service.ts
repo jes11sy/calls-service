@@ -26,9 +26,21 @@ export class PhonesService {
         rk: { select: { id: true, name: true, code: true } },
         source: true,
         createdAt: true,
-        _count: { select: { calls: true } },
       },
     });
+
+    const callCounts = await this.prisma.call.groupBy({
+      by: ['phoneAts'],
+      _count: {
+        _all: true,
+      },
+    });
+
+    const callsCountByPhone = new Map(
+      callCounts
+        .filter((item) => item.phoneAts)
+        .map((item) => [item.phoneAts, item._count._all]),
+    );
 
     return {
       success: true,
@@ -41,7 +53,7 @@ export class PhonesService {
         rkName: phone.rk?.name,
         rkCode: phone.rk?.code,
         source: phone.source,
-        callsCount: phone._count.calls,
+        callsCount: callsCountByPhone.get(phone.number) || 0,
         createdAt: phone.createdAt,
       })),
     };
@@ -59,11 +71,16 @@ export class PhonesService {
         rk: { select: { id: true, name: true, code: true } },
         source: true,
         createdAt: true,
-        _count: { select: { calls: true } },
       },
     });
 
     if (!phone) throw new NotFoundException('Phone number not found');
+
+    const callsCount = await this.prisma.call.count({
+      where: {
+        phoneAts: phone.number,
+      },
+    });
 
     return {
       success: true,
@@ -76,7 +93,7 @@ export class PhonesService {
         rkName: phone.rk?.name,
         rkCode: phone.rk?.code,
         source: phone.source,
-        callsCount: phone._count.calls,
+        callsCount,
         createdAt: phone.createdAt,
       },
     };
