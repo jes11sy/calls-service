@@ -58,7 +58,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        orderId: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -69,14 +69,11 @@ export class CallsService {
         operator: {
           select: { id: true, name: true, login: true },
         },
-        phone: {
-          select: { id: true, number: true, cityId: true, rkId: true, source: true },
+        appeal: {
+          select: { id: true, sourceType: true, orderId: true },
         },
         master: {
           select: { id: true, name: true },
-        },
-        order: {
-          select: { id: true, phone: true, statusId: true },
         },
       },
       skip,
@@ -85,7 +82,8 @@ export class CallsService {
 
     const callsWithMasterName = calls.map((call: any) => ({
       ...call,
-      source: call.phone?.source ?? null,
+      orderId: call.appeal?.orderId ?? null,
+      source: call.appeal?.sourceType ?? null,
       masterName: call.master?.name || null,
     }));
 
@@ -113,7 +111,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        orderId: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -124,14 +122,11 @@ export class CallsService {
         operator: {
           select: { id: true, name: true, login: true, sipAddress: true },
         },
-        phone: {
-          select: { id: true, number: true, cityId: true, rkId: true, source: true },
+        appeal: {
+          select: { id: true, sourceType: true, orderId: true },
         },
         master: {
           select: { id: true, name: true },
-        },
-        order: {
-          select: { id: true, phone: true, statusId: true },
         },
       },
     });
@@ -141,16 +136,12 @@ export class CallsService {
     const c = call as any;
     return {
       success: true,
-      data: { ...call, source: c.phone?.source ?? null, masterName: c.master?.name || null },
+      data: { ...call, orderId: c.appeal?.orderId ?? null, source: c.appeal?.sourceType ?? null, masterName: c.master?.name || null },
     };
   }
 
   async createCall(dto: CreateCallDto, user: any) {
     const phoneAts = dto.phoneAts || '';
-
-    const phone = phoneAts
-      ? await this.prisma.phone.findUnique({ where: { number: phoneAts } })
-      : null;
 
     const call = await this.prisma.call.create({
       data: {
@@ -160,18 +151,18 @@ export class CallsService {
         callId: dto.callId || `MANUAL-${Date.now()}`,
         phoneClient: dto.phoneClient,
         phoneAts,
-        phoneNumber: phone ? phoneAts : null,
         duration: dto.duration,
         status: dto.status,
         operatorId: user.userId,
         masterId: dto.masterId || null,
         directorId: dto.directorId || null,
         note: dto.note || null,
-        orderId: dto.orderId || null,
+        appealId: dto.appealId || null,
       },
       include: {
         operator: { select: { id: true, name: true } },
         master: { select: { id: true, name: true } },
+        appeal: { select: { id: true, sourceType: true, orderId: true } },
       },
     });
 
@@ -198,7 +189,7 @@ export class CallsService {
         ...(dto.masterId !== undefined && { masterId: dto.masterId }),
         ...(dto.directorId !== undefined && { directorId: dto.directorId }),
         ...(dto.note !== undefined && { note: dto.note }),
-        ...(dto.orderId !== undefined && { orderId: dto.orderId }),
+        ...(dto.appealId !== undefined && { appealId: dto.appealId }),
       },
     });
 
@@ -223,7 +214,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        orderId: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -232,16 +223,15 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
-        phone: { select: { id: true, number: true, source: true } },
+        appeal: { select: { id: true, sourceType: true, orderId: true } },
         master: { select: { id: true, name: true } },
-        order: { select: { id: true, phone: true, statusId: true } },
       },
       take: 50,
     });
 
     return {
       success: true,
-      data: calls.map((call: any) => ({ ...call, source: call.phone?.source ?? null, masterName: call.master?.name || null })),
+      data: calls.map((call: any) => ({ ...call, orderId: call.appeal?.orderId ?? null, source: call.appeal?.sourceType ?? null, masterName: call.master?.name || null })),
     };
   }
 
@@ -300,7 +290,7 @@ export class CallsService {
         masterId: true,
         directorId: true,
         note: true,
-        orderId: true,
+        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -309,15 +299,15 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true } },
-        phone: { select: { id: true, number: true, source: true } },
+        appeal: { select: { id: true, sourceType: true, orderId: true } },
         master: { select: { id: true, name: true } },
-        order: { select: { id: true, phone: true, statusId: true } },
       },
     });
 
     const callsWithMasterName = calls.map((call: any) => ({
       ...call,
-      source: call.phone?.source ?? null,
+      orderId: call.appeal?.orderId ?? null,
+      source: call.appeal?.sourceType ?? null,
       masterName: call.master?.name || null,
     }));
 
@@ -389,7 +379,7 @@ export class CallsService {
         ...(data.masterId !== undefined && { masterId: data.masterId }),
         ...(data.directorId !== undefined && { directorId: data.directorId }),
         ...(data.note !== undefined && { note: data.note }),
-        ...(data.orderId !== undefined && { orderId: data.orderId }),
+        ...(data.appealId !== undefined && { appealId: data.appealId }),
       },
     });
 

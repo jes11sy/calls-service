@@ -160,7 +160,6 @@ export class WebhookService {
 
       const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
       const rkId = phone?.rkId || this.DEFAULT_RK_ID;
-      const source = phone?.source ?? null;
 
       let existingCall = existingCallForDirection;
       if (!existingCall) {
@@ -178,8 +177,6 @@ export class WebhookService {
         });
       }
 
-      const phoneNumber = phone ? phoneAts : null;
-
       const finalStatus = (existingCall?.status === 'answered' && status !== 'answered') ? 'answered' : status;
       const finalDuration = (existingCall?.status === 'answered' && duration === 0 && (existingCall.duration ?? 0) > 0) ? existingCall.duration : duration;
 
@@ -196,13 +193,11 @@ export class WebhookService {
             duration: finalDuration,
             phoneClient,
             phoneAts,
-            phoneNumber,
             mangoData: summaryData,
             ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
         });
-        call.source = source;
       } else {
         isNewCall = true;
         try {
@@ -214,16 +209,14 @@ export class WebhookService {
               callId: entry_id,
               phoneClient,
               phoneAts,
-              phoneNumber,
               status,
               duration,
               operatorId: operator.id,
               mangoData: summaryData,
               ...(masterId && { masterId }),
             },
-            include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+            include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
           });
-          call.source = source;
         } catch (createError: any) {
           if (createError.code === 'P2002') {
             const existingByCallId = await this.prisma.call.findUnique({ where: { callId: entry_id } });
@@ -231,8 +224,8 @@ export class WebhookService {
               const existingFinalStatus = (existingByCallId.status === 'answered' && finalStatus !== 'answered') ? 'answered' : finalStatus;
               call = await this.prisma.call.update({
                 where: { id: existingByCallId.id },
-                data: { callDirection: callDirectionType, status: existingFinalStatus, duration: finalDuration, phoneNumber, mangoData: summaryData, ...(masterId && { masterId }) },
-                include: { operator: { select: { id: true, name: true } } },
+                data: { callDirection: callDirectionType, status: existingFinalStatus, duration: finalDuration, mangoData: summaryData, ...(masterId && { masterId }) },
+                include: { operator: { select: { id: true, name: true } }, appeal: { select: { sourceType: true, orderId: true } } },
               });
               isNewCall = false;
             } else {
@@ -248,7 +241,7 @@ export class WebhookService {
         await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
         if (callDirectionType === 'inbound' && operator.id && status === 'missed') {
           this.realtimeService.sendCallNotificationToOperator(
-            operator.id, call.id, phoneClient, 'call_missed', call.cityId, phone?.rk?.name, source,
+            operator.id, call.id, phoneClient, 'call_missed', call.cityId, phone?.rk?.name, call.appeal?.sourceType ?? null,
           ).catch(err => this.logger.warn(`Missed call notification failed: ${err.message}`));
         }
       } else {
@@ -290,14 +283,13 @@ export class WebhookService {
     if (callDirection === 'inbound') {
       const phoneCityId = phone?.cityId;
       const rkName = phone?.rk?.name;
-      const source = phone?.source;
       if (operator?.id) {
         this.realtimeService.sendCallNotificationToOperator(
-          operator.id, 0, phoneClient, 'call_incoming', phoneCityId, rkName, source,
+          operator.id, 0, phoneClient, 'call_incoming', phoneCityId, rkName, null,
         ).catch(err => this.logger.warn(`Incoming call notification failed: ${err.message}`));
       } else {
         this.realtimeService.broadcastCallNotificationToAllOperators(
-          0, phoneClient, 'call_incoming', phoneCityId, rkName, source,
+          0, phoneClient, 'call_incoming', phoneCityId, rkName, null,
         ).catch(err => this.logger.warn(`Broadcast incoming call notification failed: ${err.message}`));
       }
     }
@@ -357,23 +349,19 @@ export class WebhookService {
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
 
-    const phoneNumber = phone ? phoneAts : null;
-
     let call: any;
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
-        data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, phoneNumber, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+        data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, mangoData: payload },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
       });
-      call.source = phone?.source ?? null;
       await this.realtimeService.broadcastCallUpdated(call, ['operators', `operator:${operator.id}`]);
     } else {
       call = await this.prisma.call.create({
-        data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, phoneNumber, status: 'answered', operatorId: operator.id, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+        data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, status: 'answered', operatorId: operator.id, mangoData: payload },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
       });
-      call.source = phone?.source ?? null;
       await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
     }
 
@@ -430,7 +418,6 @@ export class WebhookService {
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
     const primaryCallId = entry_id || call_id;
-    const phoneNumber = phone ? phoneAts : null;
 
     const finalStatus = (existingCall?.status === 'answered' && status !== 'answered') ? 'answered' : status;
     const finalDuration = (existingCall?.status === 'answered' && duration === 0 && existingCall.duration > 0) ? existingCall.duration : duration;
@@ -439,22 +426,20 @@ export class WebhookService {
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
-        data: { callId: primaryCallId, callDirection, status: finalStatus, duration: finalDuration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+        data: { callId: primaryCallId, callDirection, status: finalStatus, duration: finalDuration, mangoData: payload, ...(masterId && { masterId }) },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
       });
-      call.source = phone?.source ?? null;
     } else {
       try {
         call = await this.prisma.call.create({
           data: {
             cityId, rkId, callDirection, callId: primaryCallId,
-            phoneClient, phoneAts, phoneNumber, status: finalStatus, duration: finalDuration,
+            phoneClient, phoneAts, status: finalStatus, duration: finalDuration,
             operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
             mangoData: payload, ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
         });
-        call.source = phone?.source ?? null;
         await this.realtimeService.broadcastNewCall(call, ['operators']);
       } catch (createError: any) {
         if (createError.code === 'P2002') {
@@ -463,8 +448,8 @@ export class WebhookService {
             const existingFinalStatus = (existingByCallId.status === 'answered' && finalStatus !== 'answered') ? 'answered' : finalStatus;
             call = await this.prisma.call.update({
               where: { id: existingByCallId.id },
-              data: { callDirection, status: existingFinalStatus, duration: finalDuration, phoneNumber, mangoData: payload, ...(masterId && { masterId }) },
-              include: { operator: { select: { id: true, name: true } } },
+              data: { callDirection, status: existingFinalStatus, duration: finalDuration, mangoData: payload, ...(masterId && { masterId }) },
+              include: { operator: { select: { id: true, name: true } }, appeal: { select: { sourceType: true, orderId: true } } },
             });
           } else {
             throw createError;
@@ -518,7 +503,6 @@ export class WebhookService {
 
     const cityId = phone?.cityId || this.DEFAULT_CITY_ID;
     const rkId = phone?.rkId || this.DEFAULT_RK_ID;
-    const phoneNumber = phone ? phoneAts : null;
 
     if (!call_id) return { success: true, message: 'Call ID missing' };
 
@@ -529,22 +513,20 @@ export class WebhookService {
     if (existingCall) {
       call = await this.prisma.call.update({
         where: { callId: call_id },
-        data: { callDirection, status: finalStatus, duration, phoneAts, phoneNumber, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+        data: { callDirection, status: finalStatus, duration, phoneAts, mangoData: payload },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
       });
-      call.source = phone?.source ?? null;
       await this.realtimeService.broadcastCallUpdated(call, ['operators']);
     } else {
       call = await this.prisma.call.create({
         data: {
           cityId, rkId, callDirection, callId: call_id,
-          phoneClient, phoneAts, phoneNumber, duration, status,
+          phoneClient, phoneAts, duration, status,
           operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
           mangoData: payload,
         },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
       });
-      call.source = phone?.source ?? null;
       await this.realtimeService.broadcastNewCall(call, ['operators']);
     }
 
@@ -552,36 +534,9 @@ export class WebhookService {
   }
 
   private async createOrderForCall(call: any, phoneClient: string, operatorId: number) {
-    const existingOrder = await this.prisma.order.findFirst({
-      where: { callId: String(call.id) },
-    });
-    if (existingOrder) {
-      this.logger.log(`Order already exists for call ${call.id}, skipping`);
-      return;
-    }
-
-    const newStatusId = await this.getNewStatusId();
-
-    const order = await this.prisma.order.create({
-      data: {
-        phone: phoneClient,
-        clientName: '',
-        description: '',
-        statusId: newStatusId,
-        callId: String(call.id),
-        operatorId,
-        cityId: call.cityId ?? 1,
-        rkId: call.rkId ?? 1,
-        source: call.source ?? null,
-      },
-    });
-
-    await this.prisma.call.update({
-      where: { id: call.id },
-      data: { orderId: order.id },
-    });
-
-    this.logger.log(`Auto-created order #${order.id} (appeal) for answered inbound call #${call.id}`);
+    this.logger.warn(
+      `createOrderForCall is disabled for call #${call.id}: orders must be created explicitly and linked via appeals`,
+    );
   }
 
   private async getNewStatusId(): Promise<number> {

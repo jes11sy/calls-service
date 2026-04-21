@@ -79,19 +79,30 @@ model Master {
 // ─────────────────────────────────────────
 
 model Order {
-  id          Int      @id @default(autoincrement())
-  phone       String   @db.VarChar(20)
-  cityId      Int      @map("city_id")
-  rkId        Int      @map("rk_id")
-  callId      String?  @map("call_id") @db.VarChar(100)
-  masterId    Int?     @map("master_id")
-  clientName  String   @default("") @map("client_name") @db.VarChar(255)
-  statusId    Int      @map("status_id")
-  operatorId  Int      @map("operator_id")
-  description String   @default("") @db.Text
-  source      String?  @db.VarChar(255)
-
-  calls Call[]
+  id              Int       @id @default(autoincrement())
+  cityId          Int       @map("city_id")
+  rkId            Int       @map("rk_id")
+  phone           String    @db.VarChar(20)
+  orderTypeId     Int       @map("order_type_id")
+  clientName      String    @map("client_name") @db.VarChar(255)
+  address         String    @db.Text
+  dateMeeting     DateTime  @map("date_meeting")
+  equipmentTypeId Int       @map("equipment_type_id")
+  problem         String    @db.Text
+  statusId        Int       @map("status_id")
+  operatorId      Int       @map("operator_id")
+  masterId        Int?      @map("master_id")
+  result          Decimal?  @db.Decimal(10, 2)
+  expenditure     Decimal?  @db.Decimal(10, 2)
+  clean           Decimal?  @db.Decimal(10, 2)
+  masterChange    Decimal?  @map("master_change") @db.Decimal(10, 2)
+  prepayment      Decimal?  @db.Decimal(10, 2)
+  callId          String?   @map("call_id") @db.VarChar(100)
+  appealId        Int?      @map("appeal_id")
+  dateCloseMod    DateTime? @map("date_close_mod")
+  closingAt       DateTime? @map("closing_at")
+  version         Int       @default(1)
+  hasPoverka      Boolean   @default(false) @map("has_poverka")
 
   @@schema("orders_service")
   @@map("orders")
@@ -107,19 +118,50 @@ model Phone {
   number    String   @unique @db.VarChar(20)
   cityId    Int      @map("city_id")
   rkId      Int      @map("rk_id")
-  source    String?  @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   city City @relation(fields: [cityId], references: [id])
   rk   Rk   @relation(fields: [rkId], references: [id])
 
-  calls Call[]
-
   @@index([cityId])
   @@index([rkId])
   @@schema("calls_service")
   @@map("phones")
+}
+
+model Appeal {
+  id          Int       @id @default(autoincrement())
+  operatorId  Int       @map("operator_id")
+  cityId      Int       @map("city_id")
+  phone       String    @db.VarChar(20)
+  category    String    @db.VarChar(50)
+  description String?   @db.Text
+  result      String?   @db.Text
+  status      String    @default("new") @db.VarChar(50)
+  sourceType  String    @map("source_type") @db.VarChar(20)
+  callId      Int?      @map("call_id")
+  siteOrderId Int?      @map("site_order_id")
+  orderId     Int?      @map("order_id")
+  callbackAt  DateTime? @map("callback_at")
+  closedAt    DateTime? @map("closed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  calls Call[]
+
+  @@index([operatorId])
+  @@index([phone])
+  @@index([status])
+  @@index([category])
+  @@index([callbackAt])
+  @@index([sourceType])
+  @@index([cityId, status])
+  @@index([operatorId, createdAt])
+  @@index([phone, createdAt])
+  @@index([status, callbackAt])
+  @@schema("calls_service")
+  @@map("appeals")
 }
 
 /// Звонки (интеграция с Mango)
@@ -140,8 +182,7 @@ model Call {
   masterId             Int?      @map("master_id")
   directorId           Int?      @map("director_id")
   note                 String?   @db.Text
-  orderId              Int?      @map("order_id")
-  phoneNumber          String?   @map("phone_number") @db.VarChar(20)
+  appealId             Int?      @map("appeal_id")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
@@ -149,8 +190,7 @@ model Call {
   rk       Rk        @relation(fields: [rkId], references: [id])
   operator Operator  @relation(fields: [operatorId], references: [id])
   master   Master?   @relation(fields: [masterId], references: [id])
-  phone    Phone?    @relation(fields: [phoneNumber], references: [number])
-  order    Order?    @relation(fields: [orderId], references: [id])
+  appeal   Appeal?   @relation(fields: [appealId], references: [id])
 
   @@index([operatorId])
   @@index([masterId])
@@ -161,7 +201,7 @@ model Call {
   @@index([cityId])
   @@index([rkId])
   @@index([callDirection])
-  @@index([orderId])
+  @@index([appealId])
   @@index([cityId, createdAt])
   @@index([cityId, status])
   @@index([operatorId, createdAt])

@@ -5,7 +5,7 @@ export interface ICall {
   callDirection: CallDirection;
   phoneClient: string;
   phoneAts: string;
-  phoneNumber: string | null;
+  appealId: number | null;
   masterId: number | null;
   directorId: number | null;
   operatorId: number;
@@ -16,7 +16,6 @@ export interface ICall {
   recordingProcessedAt: Date | null;
   mangoData: any | null;
   note: string | null;
-  orderId: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,18 +37,10 @@ export interface ICallWithOperator extends ICall {
 }
 
 export interface ICallWithRelations extends ICallWithOperator {
-  phone: {
+  appeal?: {
     id: number;
-    number: string;
-    rkId: number;
-    cityId: number;
-    rk?: { id: number; name: string } | null;
-    city?: { id: number; name: string } | null;
-  } | null;
-  order?: {
-    id: number;
-    phone: string;
-    statusId: number;
+    sourceType: string;
+    orderId: number | null;
   } | null;
 }
 

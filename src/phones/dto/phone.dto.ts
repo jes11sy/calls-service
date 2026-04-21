@@ -23,11 +23,6 @@ export class CreatePhoneDto {
   @Min(1)
   cityId: number;
 
-  @ApiProperty({ description: 'Источник', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  source?: string;
 }
 
 export class UpdatePhoneDto {
@@ -51,9 +46,4 @@ export class UpdatePhoneDto {
   @Min(1)
   cityId: number;
 
-  @ApiProperty({ description: 'Источник', required: false })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  source?: string;
 }

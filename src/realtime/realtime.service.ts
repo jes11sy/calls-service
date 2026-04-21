@@ -18,6 +18,14 @@ export class RealtimeService {
     }
   }
 
+  private getCallSource(call: any): string | null {
+    return call.source ?? call.appeal?.sourceType ?? null;
+  }
+
+  private getCallOrderId(call: any): number | null {
+    return call.orderId ?? call.appeal?.orderId ?? null;
+  }
+
   async broadcastNewCall(call: any, rooms: string[] = ['operators']): Promise<void> {
     if (!this.webhookToken) {
       this.logger.warn('Realtime broadcast skipped - no webhook token');
@@ -35,7 +43,7 @@ export class RealtimeService {
             rkName: call.rk?.name ?? null,
             cityId: call.cityId,
             cityName: call.city?.name ?? null,
-            source: call.source ?? null,
+            source: this.getCallSource(call),
             callDirection: call.callDirection,
             callId: call.callId,
             phoneClient: call.phoneClient,
@@ -76,12 +84,12 @@ export class RealtimeService {
             duration: call.duration,
             recordingPath: call.recordingPath,
             operatorId: call.operatorId,
-            orderId: call.orderId ?? null,
+            orderId: this.getCallOrderId(call),
             cityId: call.cityId ?? null,
             rkId: call.rkId ?? null,
             cityName: call.city?.name ?? null,
             rkName: call.rk?.name ?? null,
-            source: call.source ?? null,
+            source: this.getCallSource(call),
             operator: call.operator ? { id: call.operator.id, name: call.operator.name } : null,
           },
           rooms,
@@ -113,12 +121,12 @@ export class RealtimeService {
             status: call.status,
             duration: call.duration,
             operatorId: call.operatorId,
-            orderId: call.orderId ?? null,
+            orderId: this.getCallOrderId(call),
             cityId: call.cityId ?? null,
             rkId: call.rkId ?? null,
             cityName: call.city?.name ?? null,
             rkName: call.rk?.name ?? null,
-            source: call.source ?? null,
+            source: this.getCallSource(call),
             operator: call.operator ? { id: call.operator.id, name: call.operator.name } : null,
           },
           rooms,
