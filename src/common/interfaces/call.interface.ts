@@ -5,7 +5,6 @@ export interface ICall {
   callDirection: CallDirection;
   phoneClient: string;
   phoneAts: string;
-  appealId: number | null;
   masterId: number | null;
   directorId: number | null;
   operatorId: number;
@@ -36,11 +35,10 @@ export interface ICallWithOperator extends ICall {
 }
 
 export interface ICallWithRelations extends ICallWithOperator {
-  appeal?: {
-    id: number;
-    sourceType: string;
-    orderId: number | null;
-  } | null;
+  /** Обращения с `call_id` → этот звонок (в БД нет `calls.appeal_id`) */
+  appeals?: { id: number; sourceType: string; orderId: number | null }[];
+  orderId?: number | null;
+  source?: string | null;
 }
 
 export interface ICallStats {

@@ -196,7 +196,7 @@ export class WebhookService {
             mangoData: summaryData,
             ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
         });
       } else {
         isNewCall = true;
@@ -215,7 +215,7 @@ export class WebhookService {
               mangoData: summaryData,
               ...(masterId && { masterId }),
             },
-            include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+            include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
           });
         } catch (createError: any) {
           if (createError.code === 'P2002') {
@@ -225,7 +225,7 @@ export class WebhookService {
               call = await this.prisma.call.update({
                 where: { id: existingByCallId.id },
                 data: { callDirection: callDirectionType, status: existingFinalStatus, duration: finalDuration, mangoData: summaryData, ...(masterId && { masterId }) },
-                include: { operator: { select: { id: true, name: true } }, appeal: { select: { sourceType: true, orderId: true } } },
+                include: { operator: { select: { id: true, name: true } }, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
               });
               isNewCall = false;
             } else {
@@ -241,7 +241,7 @@ export class WebhookService {
         await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
         if (callDirectionType === 'inbound' && operator.id && status === 'missed') {
           this.realtimeService.sendCallNotificationToOperator(
-            operator.id, call.id, phoneClient, 'call_missed', call.cityId, phone?.rk?.name, call.appeal?.sourceType ?? null,
+            operator.id, call.id, phoneClient, 'call_missed', call.cityId, phone?.rk?.name, call.appeals?.[0]?.sourceType ?? null,
           ).catch(err => this.logger.warn(`Missed call notification failed: ${err.message}`));
         }
       } else {
@@ -354,13 +354,13 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
         data: { callId: primaryCallId, callDirection, status: 'answered', operatorId: operator.id, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
       });
       await this.realtimeService.broadcastCallUpdated(call, ['operators', `operator:${operator.id}`]);
     } else {
       call = await this.prisma.call.create({
         data: { cityId, rkId, callDirection, callId: primaryCallId, phoneClient, phoneAts, status: 'answered', operatorId: operator.id, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
       });
       await this.realtimeService.broadcastNewCall(call, ['operators', `operator:${operator.id}`]);
     }
@@ -427,7 +427,7 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { id: existingCall.id },
         data: { callId: primaryCallId, callDirection, status: finalStatus, duration: finalDuration, mangoData: payload, ...(masterId && { masterId }) },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
       });
     } else {
       try {
@@ -438,7 +438,7 @@ export class WebhookService {
             operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
             mangoData: payload, ...(masterId && { masterId }),
           },
-          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+          include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
         });
         await this.realtimeService.broadcastNewCall(call, ['operators']);
       } catch (createError: any) {
@@ -449,7 +449,7 @@ export class WebhookService {
             call = await this.prisma.call.update({
               where: { id: existingByCallId.id },
               data: { callDirection, status: existingFinalStatus, duration: finalDuration, mangoData: payload, ...(masterId && { masterId }) },
-              include: { operator: { select: { id: true, name: true } }, appeal: { select: { sourceType: true, orderId: true } } },
+              include: { operator: { select: { id: true, name: true } }, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
             });
           } else {
             throw createError;
@@ -514,7 +514,7 @@ export class WebhookService {
       call = await this.prisma.call.update({
         where: { callId: call_id },
         data: { callDirection, status: finalStatus, duration, phoneAts, mangoData: payload },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
       });
       await this.realtimeService.broadcastCallUpdated(call, ['operators']);
     } else {
@@ -525,7 +525,7 @@ export class WebhookService {
           operatorId: operator?.id || this.SYSTEM_OPERATOR_ID,
           mangoData: payload,
         },
-        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeal: { select: { sourceType: true, orderId: true } } },
+        include: { operator: { select: { id: true, name: true } }, city: true, rk: true, appeals: { take: 1, orderBy: { id: 'desc' }, select: { sourceType: true, orderId: true } } },
       });
       await this.realtimeService.broadcastNewCall(call, ['operators']);
     }

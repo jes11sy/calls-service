@@ -148,7 +148,7 @@ model Appeal {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  calls Call[]
+  call   Call?   @relation(fields: [callId], references: [id])
 
   @@index([operatorId])
   @@index([phone])
@@ -160,6 +160,7 @@ model Appeal {
   @@index([operatorId, createdAt])
   @@index([phone, createdAt])
   @@index([status, callbackAt])
+  @@index([callId])
   @@schema("calls_service")
   @@map("appeals")
 }
@@ -181,7 +182,6 @@ model Call {
   operatorId           Int       @map("operator_id")
   masterId             Int?      @map("master_id")
   directorId           Int?      @map("director_id")
-  appealId             Int?      @map("appeal_id")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
@@ -189,7 +189,7 @@ model Call {
   rk       Rk        @relation(fields: [rkId], references: [id])
   operator Operator  @relation(fields: [operatorId], references: [id])
   master   Master?   @relation(fields: [masterId], references: [id])
-  appeal   Appeal?   @relation(fields: [appealId], references: [id])
+  appeals  Appeal[]
 
   @@index([operatorId])
   @@index([masterId])
@@ -200,7 +200,6 @@ model Call {
   @@index([cityId])
   @@index([rkId])
   @@index([callDirection])
-  @@index([appealId])
   @@index([cityId, createdAt])
   @@index([cityId, status])
   @@index([operatorId, createdAt])

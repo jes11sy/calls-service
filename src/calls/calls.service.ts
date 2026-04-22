@@ -57,7 +57,6 @@ export class CallsService {
         phoneAts: true,
         masterId: true,
         directorId: true,
-        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -68,7 +67,9 @@ export class CallsService {
         operator: {
           select: { id: true, name: true, login: true },
         },
-        appeal: {
+        appeals: {
+          take: 1,
+          orderBy: { id: 'desc' },
           select: { id: true, sourceType: true, orderId: true },
         },
         master: {
@@ -79,12 +80,15 @@ export class CallsService {
       take: limit,
     });
 
-    const callsWithMasterName = calls.map((call: any) => ({
-      ...call,
-      orderId: call.appeal?.orderId ?? null,
-      source: call.appeal?.sourceType ?? null,
-      masterName: call.master?.name || null,
-    }));
+    const callsWithMasterName = calls.map((call: any) => {
+      const a = call.appeals?.[0];
+      return {
+        ...call,
+        orderId: a?.orderId ?? null,
+        source: a?.sourceType ?? null,
+        masterName: call.master?.name || null,
+      };
+    });
 
     return {
       success: true,
@@ -109,7 +113,6 @@ export class CallsService {
         phoneAts: true,
         masterId: true,
         directorId: true,
-        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -120,7 +123,9 @@ export class CallsService {
         operator: {
           select: { id: true, name: true, login: true, sipAddress: true },
         },
-        appeal: {
+        appeals: {
+          take: 1,
+          orderBy: { id: 'desc' },
           select: { id: true, sourceType: true, orderId: true },
         },
         master: {
@@ -132,9 +137,10 @@ export class CallsService {
     if (!call) throw new NotFoundException('Call not found');
 
     const c = call as any;
+    const a = c.appeals?.[0];
     return {
       success: true,
-      data: { ...call, orderId: c.appeal?.orderId ?? null, source: c.appeal?.sourceType ?? null, masterName: c.master?.name || null },
+      data: { ...call, orderId: a?.orderId ?? null, source: a?.sourceType ?? null, masterName: c.master?.name || null },
     };
   }
 
@@ -154,12 +160,11 @@ export class CallsService {
         operatorId: user.userId,
         masterId: dto.masterId || null,
         directorId: dto.directorId || null,
-        appealId: dto.appealId || null,
       },
       include: {
         operator: { select: { id: true, name: true } },
         master: { select: { id: true, name: true } },
-        appeal: { select: { id: true, sourceType: true, orderId: true } },
+        appeals: { take: 1, orderBy: { id: 'desc' }, select: { id: true, sourceType: true, orderId: true } },
       },
     });
 
@@ -185,7 +190,6 @@ export class CallsService {
         ...(dto.callDirection && { callDirection: dto.callDirection }),
         ...(dto.masterId !== undefined && { masterId: dto.masterId }),
         ...(dto.directorId !== undefined && { directorId: dto.directorId }),
-        ...(dto.appealId !== undefined && { appealId: dto.appealId }),
       },
     });
 
@@ -209,7 +213,6 @@ export class CallsService {
         phoneAts: true,
         masterId: true,
         directorId: true,
-        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -218,7 +221,11 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true, sipAddress: true } },
-        appeal: { select: { id: true, sourceType: true, orderId: true } },
+        appeals: {
+          take: 1,
+          orderBy: { id: 'desc' },
+          select: { id: true, sourceType: true, orderId: true },
+        },
         master: { select: { id: true, name: true } },
       },
       take: 50,
@@ -226,7 +233,10 @@ export class CallsService {
 
     return {
       success: true,
-      data: calls.map((call: any) => ({ ...call, orderId: call.appeal?.orderId ?? null, source: call.appeal?.sourceType ?? null, masterName: call.master?.name || null })),
+      data: calls.map((call: any) => {
+        const a = call.appeals?.[0];
+        return { ...call, orderId: a?.orderId ?? null, source: a?.sourceType ?? null, masterName: call.master?.name || null };
+      }),
     };
   }
 
@@ -284,7 +294,6 @@ export class CallsService {
         phoneAts: true,
         masterId: true,
         directorId: true,
-        appealId: true,
         status: true,
         callId: true,
         duration: true,
@@ -293,17 +302,24 @@ export class CallsService {
         createdAt: true,
         updatedAt: true,
         operator: { select: { id: true, name: true, login: true } },
-        appeal: { select: { id: true, sourceType: true, orderId: true } },
+        appeals: {
+          take: 1,
+          orderBy: { id: 'desc' },
+          select: { id: true, sourceType: true, orderId: true },
+        },
         master: { select: { id: true, name: true } },
       },
     });
 
-    const callsWithMasterName = calls.map((call: any) => ({
-      ...call,
-      orderId: call.appeal?.orderId ?? null,
-      source: call.appeal?.sourceType ?? null,
-      masterName: call.master?.name || null,
-    }));
+    const callsWithMasterName = calls.map((call: any) => {
+      const a = call.appeals?.[0];
+      return {
+        ...call,
+        orderId: a?.orderId ?? null,
+        source: a?.sourceType ?? null,
+        masterName: call.master?.name || null,
+      };
+    });
 
     const groupedCalls: Record<string, any[]> = {};
     for (const ph of phoneNumbers) groupedCalls[ph] = [];
@@ -372,7 +388,6 @@ export class CallsService {
         ...(data.callDirection && { callDirection: data.callDirection }),
         ...(data.masterId !== undefined && { masterId: data.masterId }),
         ...(data.directorId !== undefined && { directorId: data.directorId }),
-        ...(data.appealId !== undefined && { appealId: data.appealId }),
       },
     });
 

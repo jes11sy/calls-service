@@ -19,11 +19,11 @@ export class RealtimeService {
   }
 
   private getCallSource(call: any): string | null {
-    return call.source ?? call.appeal?.sourceType ?? null;
+    return call.source ?? call.appeals?.[0]?.sourceType ?? null;
   }
 
   private getCallOrderId(call: any): number | null {
-    return call.orderId ?? call.appeal?.orderId ?? null;
+    return call.orderId ?? call.appeals?.[0]?.orderId ?? null;
   }
 
   async broadcastNewCall(call: any, rooms: string[] = ['operators']): Promise<void> {

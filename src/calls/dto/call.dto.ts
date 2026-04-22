@@ -60,13 +60,6 @@ export class CreateCallDto {
   @IsOptional()
   @Min(1)
   directorId?: number;
-
-  @ApiProperty({ required: false, description: 'ID обращения' })
-  @Type(() => Number)
-  @IsNumber()
-  @IsOptional()
-  @Min(1)
-  appealId?: number;
 }
 
 export class UpdateCallDto {
@@ -100,11 +93,4 @@ export class UpdateCallDto {
   @IsOptional()
   @Min(1)
   directorId?: number;
-
-  @ApiProperty({ required: false, description: 'ID обращения' })
-  @Type(() => Number)
-  @IsNumber()
-  @IsOptional()
-  @Min(1)
-  appealId?: number;
 }
