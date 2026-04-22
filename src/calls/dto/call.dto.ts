@@ -61,11 +61,6 @@ export class CreateCallDto {
   @Min(1)
   directorId?: number;
 
-  @ApiProperty({ required: false, description: 'Заметка к звонку' })
-  @IsString()
-  @IsOptional()
-  note?: string;
-
   @ApiProperty({ required: false, description: 'ID обращения' })
   @Type(() => Number)
   @IsNumber()
@@ -105,11 +100,6 @@ export class UpdateCallDto {
   @IsOptional()
   @Min(1)
   directorId?: number;
-
-  @ApiProperty({ required: false, description: 'Заметка к звонку' })
-  @IsString()
-  @IsOptional()
-  note?: string;
 
   @ApiProperty({ required: false, description: 'ID обращения' })
   @Type(() => Number)

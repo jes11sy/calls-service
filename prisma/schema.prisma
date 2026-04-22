@@ -181,7 +181,6 @@ model Call {
   operatorId           Int       @map("operator_id")
   masterId             Int?      @map("master_id")
   directorId           Int?      @map("director_id")
-  note                 String?   @db.Text
   appealId             Int?      @map("appeal_id")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")

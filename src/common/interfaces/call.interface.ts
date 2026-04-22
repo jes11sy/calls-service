@@ -15,7 +15,6 @@ export interface ICall {
   recordingPath: string | null;
   recordingProcessedAt: Date | null;
   mangoData: any | null;
-  note: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
